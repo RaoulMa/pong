@@ -16,7 +16,7 @@ from utils import data_to_json
 from utils import plot_df
 
 # use tf
-if False:
+if True:
     from nn_tf import VPGAgent
     from nn_tf import PPOAgent
     from nn_tf import DQNAgent
@@ -28,7 +28,7 @@ elif False:
     from nn_tfe import DQNAgent
     from nn_tfe import StateValueFunction
 # use pytorch
-elif True:
+elif False:
     from nn_pt import VPGAgent
     from nn_pt import PPOAgent
     from nn_pt import DQNAgent

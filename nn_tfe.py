@@ -345,6 +345,9 @@ class DQNAgent(FNN):
         self.global_step += 1
         return loss, grads
 
+    def update_target_network(self):
+       pass
+
     def flat_variables(self):
         return tf.concat([tf.reshape(v, [-1]) for v in self.trainable_variables], axis=0)
 

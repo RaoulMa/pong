@@ -155,7 +155,6 @@ class Model():
                                 cfg.reward_discount_factor,
                                 cfg.activation,
                                 cfg.experiment_folder, 'dqn')
-            self.agent_target = copy.deepcopy(self.agent)
 
         # random-search dependent hyperparameters
         if 'rs' in self.model_name:
@@ -295,7 +294,7 @@ class Model():
 
             # update q-value target network
             if self.step_number % self.update_target_network_freq == 0:
-                self.agent_target.set_trainable_weights(self.agent.get_trainable_weights())
+                self.agent.update_target_network()
 
             # epsilon-greedy action
             action = self.action(obs, self.epsilon)

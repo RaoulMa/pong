@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
     # specify environment and agent
     env_name = 'CartPole-v0'
-    agent_name = 'ppo'
+    agent_name = 'dqn'
 
     # load default config parameters
     cfg_env, cfg_agent = get_cfg(experiment_folder, env_name, agent_name)
@@ -23,8 +23,8 @@ if __name__ == '__main__':
     cfg = dotdict(cfg)
 
     # modify default config parameters
-    cfg.n_batches = 500
-    cfg.n_episodes = 500
+    cfg.n_batches = 100
+    cfg.n_episodes = 100
     cfg.log_step = 10
 
     # load and train model

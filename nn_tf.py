@@ -50,6 +50,8 @@ class FNN():
                                               kernel_initializer=kernel_initializer)
                 self.layers_.append(outputs)
 
+            self.outputs = outputs
+
     def save(self):
         pass
 
@@ -307,8 +309,96 @@ class DQNAgent(FNN):
                  experiment_folder=os.getcwd(), name='dqn'):
         super().__init__(d_input, d_hidden_layers, d_output, learning_rate, [], activation, experiment_folder, name)
         self.gamma = gamma
+        self.d_input = d_input
+        self.learning_rate = learning_rate
 
-    # todo
+        # traget q-value network
+        self.target_dqn = FNN(d_input, d_hidden_layers, d_output, learning_rate,
+                              [], activation, experiment_folder, 'target_dqn')
+
+        # target q-value
+        self.q_target = self.target_dqn.layers_[-1]
+
+        # current q-value
+        self.q = self.layers_[-1]
+
+        # q-target value ph
+        self.q_target = tf.placeholder(shape=(None, d_output), dtype=tf.float32)
+
+        # loss
+        self.loss = tf.losses.mean_squared_error(labels=self.q_target, predictions=self.q)
+        self.train_op = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss)
+
+        # initialise graph
+        self.init_session()
+
+    def init_session(self):
+        config_tf = tf.ConfigProto(device_count={'GPU': 0})
+        self.session = tf.Session(config=config_tf)
+        self.session.run(tf.global_variables_initializer())
+        # set trainable variables equal in both networks
+        self.copy_trainable_variables(self.nn_name, self.target_dqn.nn_name)
+
+    def close_session(self):
+        self.session.close()
+
+    def get_trainable_variables(self, nn_name):
+        return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=nn_name)
+
+    def copy_trainable_variables(self, src_name, dest_name):
+        """ copy weights from source to destination network """
+        src_vars = self.get_trainable_variables(src_name)
+        dest_vars = self.get_trainable_variables(dest_name)
+        op_list = []
+        for src_var, dest_var in zip(src_vars, dest_vars):
+            op_list.append(dest_var.assign(src_var.value()))
+        self.session.run(op_list)
+
+    def update_target_network(self):
+        # set trainable variables equal in both networks
+        self.copy_trainable_variables(self.nn_name, self.target_dqn.nn_name)
+
+    def action(self, obs):
+        """ return action and policy """
+        # note we take actions according to the old policy
+        feed = {self.observations: obs.reshape(1,-1)}
+        # deterministic action
+        # logits = self.session.run(self.q, feed)[0]
+        # action = np.argmax(logits)
+        # probabilistic action
+        # add 1e-6 offset to prevent numeric underflow
+        policy = self.session.run(tf.nn.softmax(self.q), feed)[0] + 1e-6
+        policy /= np.sum(policy)
+        action = np.argmax(np.random.multinomial(1, policy))
+        return action, policy
+
+    def update(self, obs, actions, next_obs, rewards, done):
+        """ one gradient step update """
+        # current observation, reward, done flag: s_t, r_t, d_t
+        # next observation: s_(t+1)
+
+        # target q-value of next observation s_(t+1)
+        feed = {self.target_dqn.observations: next_obs}
+        q_target_next_state = self.session.run(self.target_dqn.outputs, feed)
+
+        # maximal target q-value of next observation s_(t+1) for 'best' action
+        q_target_next_state_max = np.max(q_target_next_state, axis=1)
+
+        # q-value of current observation s_t
+        feed = {self.observations: obs}
+        q = self.session.run(self.q, feed)
+
+        # for given pair (s_t, a_t) construct target
+        q_target = q
+        for x, y in enumerate(actions):
+            q_target[x, y] = rewards[x] + self.gamma * (1. - done[x]) * q_target_next_state_max[x]
+
+        # train current policy network
+        feed = {self.observations: obs, self.q_target: q_target}
+        loss, _ = self.session.run([self.loss, self.train_op], feed)
+
+        self.global_step += 1
+        return loss, _
 
 class StateValueFunction(FNN):
     """ State-Value Function

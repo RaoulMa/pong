@@ -15,20 +15,22 @@ from utils import json_to_data
 from utils import data_to_json
 from utils import plot_df
 
-# use tf
-if True:
+# choose between tf, tf eager and pt
+USE_TF = True
+USE_TFE = False
+USE_PT = False
+
+if USE_TF:
     from nn_tf import VPGAgent
     from nn_tf import PPOAgent
     from nn_tf import DQNAgent
     from nn_tf import StateValueFunction
-# use tf eager
-elif False:
+elif USE_TFE:
     from nn_tfe import VPGAgent
     from nn_tfe import PPOAgent
     from nn_tfe import DQNAgent
     from nn_tfe import StateValueFunction
-# use pytorch
-elif False:
+elif USE_PT:
     from nn_pt import VPGAgent
     from nn_pt import PPOAgent
     from nn_pt import DQNAgent
@@ -129,7 +131,7 @@ class Model():
             self.batch_size = cfg.batch_size
             self.batch_number = 0
             self.crewards, self.entropy_loss, self.baseline_value, self.baseline_loss = [], [], [], []
-            self.policy_loss, self.ratio = [], []
+            self.policy_loss, self.ratio, self.clipped_ratio, self.n_clips = [], [], [], []
             self.agent = PPOAgent(self.d_input_agent,
                                   cfg.agent_d_hidden_layers,
                                   self.n_actions,
@@ -162,14 +164,18 @@ class Model():
 
         # initialise summary writer and save cfg parameters
         if not load:
-            self.summary_writer = tf.contrib.summary.create_file_writer(cfg.experiment_folder, flush_millis=10000)
-
             # short description
             description = self.env_name
             if 'maze' in self.model_name:
                 description += '_maxsteps_' + str(cfg.env_max_steps) + '_reward_' + str(cfg.env_reward)
-            with self.summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
-                tf.contrib.summary.scalar('data/' + description, 0, step=0)
+
+            if USE_TF:
+                self.writer = tf.summary.FileWriter(self.cfg.experiment_folder)
+
+            if USE_TFE:
+                self.summary_writer = tf.contrib.summary.create_file_writer(cfg.experiment_folder, flush_millis=10000)
+                with self.summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
+                    tf.contrib.summary.scalar('data/' + description, 0, step=0)
 
             # save cfg parameters
             fpath = os.path.join(cfg.experiment_folder, 'cfg.json')
@@ -247,6 +253,8 @@ class Model():
         self.entropy_loss.append(stats['entropy_loss'])
         self.policy_loss.append(stats['policy_loss'])
         self.ratio.append(stats['ratio'])
+        self.clipped_ratio.append(stats['clipped_ratio'])
+        self.n_clips.append(stats['n_clips'])
         if self.baseline!=None:
             self.baseline_value.append(stats['baseline_value'])
             self.baseline_loss.append(stats['baseline_loss'])
@@ -512,6 +520,8 @@ class Model():
             summary['data/entropy_loss'] = np.mean(self.entropy_loss[-m:])
             summary['data/policy_loss'] = np.mean(self.policy_loss[-m:])
             summary['data/ratio'] = np.mean(self.ratio[-m:])
+            summary['data/clipped_ratio'] = np.mean(self.clipped_ratio[-m:])
+            summary['data/n_clips'] = np.mean(self.n_clips[-m:])
 
         if self.baseline!=None:
             summary['data/baseline_loss'] = np.mean(self.baseline_loss[-m:])
@@ -520,9 +530,19 @@ class Model():
         if 'maze' in self.env_name:
             summary['data/n_states_visited'] = len(self.states_visited)
 
-        with self.summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
-            for key in summary.keys():
-                tf.contrib.summary.scalar(key, summary[key], step=self.global_step)
+        for key in summary.keys():
+            if USE_TF:
+                summary_value = tf.Summary.Value(tag=key, simple_value=summary[key])
+                self.writer.add_summary(tf.Summary(value=[summary_value]), global_step=self.global_step)
+            elif USE_TFE:
+                with self.summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
+                    tf.contrib.summary.scalar(key, summary[key], step=self.global_step)
+        if USE_TF:
+            self.writer.flush()
 
     def close(self):
-        self.summary_writer.close()
+        if USE_TF:
+            self.writer.close()
+        elif USE_TFE:
+            self.summary_writer.close()
+

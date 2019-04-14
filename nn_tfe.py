@@ -259,13 +259,14 @@ class PPOAgent(FNN):
         clipped_ratio = tf.clip_by_value(ratio, 1.0 - self.clip_range, 1.0 + self.clip_range)
         policy_loss = - tf.reduce_mean(tf.minimum(ratio * crewards, clipped_ratio * crewards), axis=0)
         stats['policy_loss'] = policy_loss.numpy()
+        stats['clipped_ratio'] = np.mean(clipped_ratio.numpy())
+        stats['n_clips'] = sum(diff > 10e-6 for diff in ratio.numpy() - clipped_ratio.numpy())
 
         # entropy loss (exploration bonus)
         entropy_loss = - tf.reduce_mean(self.entropy(logits), axis=0)
         stats['entropy_loss'] = entropy_loss.numpy()
 
         # complete loss
-        # adding entropy loss hurts performance, therefore we exclude this term
         loss = policy_loss # + 0.01 * entropy_loss
 
         return loss, stats

@@ -32,7 +32,7 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'model_name': 'ppo',
                 'agent_d_hidden_layers': [32],
                 'agent_learning_rate': 0.001,
-                'clip_range': 0.2,
+                'clip_range': 0.01,
                 'baseline_d_hidden_layers': [32],
                 'baseline_learning_rate': 0.001,
                 'baseline': 'advantage',

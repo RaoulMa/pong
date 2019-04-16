@@ -295,7 +295,8 @@ def advantage_values(obs_batch, reward_batch, done_batch, state_value_batch, gam
     max_ep_length = max(ep_lengths)
 
     # obtain equal-sized arrays
-    obs_arr = np.zeros((n_episodes, max_ep_length, len(obs_batch[0][0])))
+    obs_shape = obs_batch[0][0].shape[1:]
+    obs_arr = np.zeros((n_episodes, max_ep_length, *obs_shape))
     reward_arr = np.zeros((n_episodes, max_ep_length))
     state_value_arr = np.zeros((n_episodes, max_ep_length))
     advantage_arr = np.zeros((n_episodes, max_ep_length))

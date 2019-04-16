@@ -125,6 +125,8 @@ class VPGAgent(FNN):
             stats['baseline_loss'] = baseline_loss
         return loss.data.numpy(), None, stats
 
+    def close(self):
+        pass
 
 class PPOAgent(FNN):
     """ PPO Agent
@@ -148,6 +150,10 @@ class PPOAgent(FNN):
 
         # old policy weights
         self.old_trainable_weights = self.get_trainable_weights()
+
+    def close(self):
+        pass
+
 
     # todo: implementation in pytorch
 
@@ -208,6 +214,9 @@ class DQNAgent(FNN):
                 layer.weight = nn.Parameter(torch.from_numpy(ws[0]))
                 layer.bias = nn.Parameter(torch.from_numpy(ws[1]))
 
+    def close(self):
+        pass
+
 class StateValueFunction(FNN):
     """ State-Value Function
         trained via Monte-Carlo or Temporal-Difference learning (td0)
@@ -235,3 +244,7 @@ class StateValueFunction(FNN):
         targets = torch.from_numpy(np.reshape(crewards, [-1, 1])).float()
         loss = self.loss_(input=state_values, target=targets).unsqueeze(0)
         return loss
+
+    def close(self):
+        pass
+

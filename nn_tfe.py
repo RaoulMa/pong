@@ -155,6 +155,9 @@ class VPGAgent(FNN):
             stats['baseline_loss'] = baseline_loss
         return loss, grads, stats
 
+    def close(self):
+        pass
+
 class PPOAgent(FNN):
     """ PPO Agent
         Proximal Policy Optimization Algorithms, Schulman et al. 2017
@@ -307,6 +310,9 @@ class PPOAgent(FNN):
             stats['baseline_loss'] = baseline_loss
         return loss, grads, stats
 
+    def close(self):
+        pass
+
 class DQNAgent(FNN):
     """ Agent trained via deep q-learning
         Playing Atari with Deep Reinforcement Learning, Mnih et al.
@@ -364,6 +370,9 @@ class DQNAgent(FNN):
             ws = [w for w in trainable_weights[i]]
             layer.set_weights(ws)
 
+    def close(self):
+        pass
+
 class StateValueFunction(FNN):
     """ State-Value Function
         trained via Monte-Carlo or Temporal-Difference learning (td0)
@@ -410,4 +419,6 @@ class StateValueFunction(FNN):
         loss = tf.losses.mean_squared_error(labels=targets, predictions=state_values)
         return loss
 
+    def close(self):
+        pass
 

@@ -4,11 +4,12 @@ import os
 import collections
 import gym
 import random
-import copy
 import pandas as pd
+import time
 import sys
 
 from envs import make_env
+from envs import AtariGame
 from utils import dotdict
 from utils import one_hot
 from utils import json_to_data
@@ -24,19 +25,31 @@ if USE_TF:
     from nn_tf import VPGAgent
     from nn_tf import PPOAgent
     from nn_tf import DQNAgent
-    from nn_tf import StateValueFunction
 elif USE_TFE:
     from nn_tfe import VPGAgent
     from nn_tfe import PPOAgent
     from nn_tfe import DQNAgent
-    from nn_tfe import StateValueFunction
 elif USE_PT:
     from nn_pt import VPGAgent
     from nn_pt import PPOAgent
     from nn_pt import DQNAgent
-    from nn_pt import StateValueFunction
 
-class Model():
+class Model(object):
+    """ Interactions of RL agents in various environments
+
+    This class implements the interactions of the PPO, VPG, DQN with
+    the environments Atari Breakout, OpenAI CartPole
+    and customizable 2D mazes.
+
+    The code is largely agnostic to the used deep learning framework
+    tensorflow, tensorflow in eager mode and pytorch
+
+    Training progress can be visualised via tensorboard and models
+    can be saved/loaded to/from the filesystem.
+
+    Default hyperparameters for each agent and environment are stored in the
+    configuration file cfg.py.
+    """
 
     @classmethod
     def load(cls, experiment_folder):
@@ -58,37 +71,51 @@ class Model():
         self.verbose = cfg.verbose
         self.global_step = cfg.global_step
         self.observation_encoding = cfg.observation_encoding
+        self.n_episodes = cfg.n_episodes
 
         # non-hyperparameters
         self.episode_number, self.step_number = 0, 0
-        self.agent_loss, self.predictor_loss = [], []
+        self.agent_loss = []
         self.returns_test, self.returns = [], []
         self.agent_buffer = collections.deque(maxlen=cfg.agent_buffer_size)
+        self.baseline = None
 
         # set seeds
         tf.set_random_seed(cfg.seed)
         np.random.seed(cfg.seed)
         random.seed(cfg.seed)
 
+        # breakout dependent hyperparameters
+        if 'Breakout' in self.env_name or 'Pong' in self.env_name:
+            self.env = AtariGame(self.env_name, cfg.seed)
+            # we fix the number of allowed actions to 4
+            self.n_actions = 4 # self.env.n_actions
+            self.d_observation = self.env.d_observation
+            self.nn_type = 'convolution'
+
         # maze dependent hyperparameters
-        if 'maze' in self.env_name:
+        elif 'maze' in self.env_name:
             self.env = make_env(self.env_name, cfg.env_max_steps, cfg.env_reward)
             self.n_actions = self.env.n_actions
             self.d_observation = self.env.d_observation
             self.n_observations = self.env.n_observations
             self.layout_shape = self.env.layout.shape
-            self.states_visited = set() # distinct states visited by the agent during training
+            # distinct states visited by the agent during training
+            self.states_visited = set()
+            self.nn_type = 'dense'
 
+            # normalise obervations
             if self.observation_encoding == 'normalise':
                 self.obs_mean = [(self.layout_shape[0] - 1.)/2., (self.layout_shape[1] - 1.)/2.]
                 self.obs_std = self.obs_mean
 
         # cartpole dependent hyperparameters
-        if 'CartPole' in self.env_name:
+        elif 'CartPole' in self.env_name:
             self.env = gym.make(self.env_name)
             self.env.seed(cfg.seed)
             self.n_actions = self.env.action_space.n
             self.d_observation = self.env.observation_space.shape[0]
+            self.nn_type = 'dense'
 
         # input dimension for the agent
         self.d_input_agent = self.d_observation
@@ -96,23 +123,17 @@ class Model():
             self.d_input_agent = self.n_observations
 
         # baseline dependent hyperparameters
-        self.baseline = None
-        if 'vpg' in self.model_name or 'ppo' in self.model_name:
-            if cfg.baseline == 'advantage':
-                self.baseline_value, self.baseline_loss = [], []
-                self.baseline = StateValueFunction(self.d_input_agent,
-                                                   cfg.baseline_d_hidden_layers,
-                                                   1,
-                                                   cfg.baseline_learning_rate,
-                                                   cfg.reward_discount_factor,
-                                                   cfg.gae_lamda,
-                                                   [],
-                                                   cfg.activation,
-                                                   cfg.experiment_folder, 'baseline')
+        baseline_cfg = dotdict({'baseline': cfg.baseline})
+        if cfg.baseline is not 'None':
+            self.baseline_value, self.baseline_loss = [], []
+            baseline_cfg = dotdict({'baseline': cfg.baseline,
+                                    'learning_rate': cfg.baseline_learning_rate,
+                                    'gae_lamda': cfg.gae_lamda,
+                                    'd_hidden_layers': cfg.baseline_d_hidden_layers})
 
         # policy-gradient dependent hyperparameters
         if 'vpg' in self.model_name:
-            self.n_batches = cfg.n_batches
+            self.n_batches = cfg.n_episodes // cfg.batch_size
             self.batch_size = cfg.batch_size
             self.batch_number = 0
             self.crewards = []
@@ -121,44 +142,50 @@ class Model():
                                   self.n_actions,
                                   cfg.agent_learning_rate,
                                   cfg.reward_discount_factor,
-                                  self.baseline,
+                                  self.nn_type,
                                   cfg.activation,
+                                  baseline_cfg,
                                   cfg.experiment_folder, 'vpg')
 
+            self.baseline = self.agent.baseline
+
         # ppo dependent hyperparameters
-        if 'ppo' in self.model_name:
-            self.n_batches = cfg.n_batches
+        elif 'ppo' in self.model_name:
+            self.n_batches = cfg.n_episodes // cfg.batch_size
             self.batch_size = cfg.batch_size
             self.batch_number = 0
             self.crewards, self.entropy_loss, self.baseline_value, self.baseline_loss = [], [], [], []
             self.policy_loss, self.ratio, self.clipped_ratio, self.n_clips = [], [], [], []
+
             self.agent = PPOAgent(self.d_input_agent,
                                   cfg.agent_d_hidden_layers,
                                   self.n_actions,
                                   cfg.agent_learning_rate,
                                   cfg.reward_discount_factor,
                                   cfg.clip_range,
-                                  self.baseline,
+                                  self.nn_type,
                                   cfg.activation,
+                                  baseline_cfg,
                                   cfg.experiment_folder, 'ppo')
 
+            self.baseline = self.agent.baseline
+
         # dqn dependent hyperparameters
-        if 'dqn' in self.model_name:
+        elif 'dqn' in self.model_name:
             self.epsilon = cfg.epsilon
             self.epsilon_discount_factor = cfg.epsilon_discount_factor
-            self.n_episodes = cfg.n_episodes
             self.update_target_network_freq = cfg.update_target_network_freq
             self.agent = DQNAgent(self.d_input_agent,
                                 cfg.agent_d_hidden_layers,
                                 self.n_actions,
                                 cfg.agent_learning_rate,
                                 cfg.reward_discount_factor,
+                                self.nn_type,
                                 cfg.activation,
                                 cfg.experiment_folder, 'dqn')
 
         # random-search dependent hyperparameters
-        if 'rs' in self.model_name:
-            self.n_episodes = cfg.n_episodes
+        elif 'rs' in self.model_name:
             self.agent = None
 
         # initialise summary writer and save cfg parameters
@@ -208,6 +235,7 @@ class Model():
                 obs = one_hot(value, n_classes)
             elif self.observation_encoding == 'normalise':
                 obs = (obs - self.obs_mean) / self.obs_std
+        obs = np.expand_dims(obs, axis=0)
         obs = obs.astype(np.float32)
         return obs
 
@@ -215,11 +243,9 @@ class Model():
         """ agent's action """
         if ('rs' in self.model_name) or (np.random.rand(1) < epsilon):
             action = np.random.randint(0, self.n_actions)
-            policy = 'random'
         else:
             obs = obs.astype(np.float32)
-            obs = np.reshape(obs, [1, -1])
-            action, policy = self.agent.action(obs)
+            action, _ = self.agent.action(obs)
         return action
 
     def add_to_buffer(self, obs, action, next_obs, reward, done):
@@ -240,7 +266,7 @@ class Model():
         loss, grads, stats = self.agent.update(obs_batch, action_batch, reward_batch, done_batch)
         self.agent_loss.append(loss)
         self.crewards.append(np.mean(stats['crewards']))
-        if self.baseline!=None:
+        if self.baseline is not None:
             self.baseline_value.append(stats['baseline_value'])
             self.baseline_loss.append(stats['baseline_loss'])
 
@@ -254,7 +280,7 @@ class Model():
         self.ratio.append(stats['ratio'])
         self.clipped_ratio.append(stats['clipped_ratio'])
         self.n_clips.append(stats['n_clips'])
-        if self.baseline!=None:
+        if self.baseline is not None:
             self.baseline_value.append(stats['baseline_value'])
             self.baseline_loss.append(stats['baseline_loss'])
 
@@ -374,7 +400,7 @@ class Model():
             if 'maze' in self.env_name:
                 self.states_visited.update(self.env.visited)
 
-            if self.episode_number % self.log_step == 0:
+            if self.batch_number > 0 and self.episode_number % self.log_step == 0:
                 self.print_logs()
                 self.write_summary()
 
@@ -416,6 +442,11 @@ class Model():
                 next_obs = self.encode_obs(next_obs)
                 done_batch[-1].append(done)
 
+                if self.verbose:
+                    self.env.render()
+                    print(self.episode_number, self.step_number, action, reward, done)
+                    time.sleep(.5)
+
                 # extrinsic reward
                 reward += self.cfg.time_reward
                 reward_batch[-1].append(reward)
@@ -429,7 +460,7 @@ class Model():
             if 'maze' in self.env_name:
                 self.states_visited.update(self.env.visited)
 
-            if self.episode_number % self.log_step == 0:
+            if self.batch_number > 1 and self.episode_number % self.log_step == 0:
                 self.print_logs()
                 self.write_summary()
 
@@ -452,13 +483,13 @@ class Model():
         return ext_return, n_steps, obs_list
 
     def save_model(self):
-        if self.agent!=None: self.agent.save()
-        if self.baseline!=None: self.baseline.save()
+        if self.agent is not None: self.agent.save()
+        if self.baseline is not None: self.baseline.save()
 
     def load_model(self):
         self.epsilon = 0.
-        if self.agent!=None: self.agent.load()
-        if self.baseline!=None: self.baseline.load()
+        if self.agent is not None: self.agent.load()
+        if self.baseline is not None: self.baseline.load()
 
     def print_logs(self):
         """ print log information """
@@ -473,9 +504,9 @@ class Model():
             np.mean(self.returns[-m:]),
             np.mean(self.returns_test[-1]))
 
-        if self.agent!=None:
+        if self.agent is not None:
             print_str += 'ag.ls {:.2f} '.format(np.mean(self.agent_loss[-m:]))
-        if self.baseline!=None:
+        if self.baseline is not None:
             print_str += 'bs.ls {:.2f} '.format(np.mean(self.baseline_loss[-m:]))
         if 'dqn' in self.model_name:
             print_str += 'eps {:.2f} '.format(self.epsilon)
@@ -509,7 +540,7 @@ class Model():
         m = 20
         summary = {'data/ext_return': np.mean(self.returns[-m:])}
 
-        if self.agent!=None:
+        if self.agent is not None:
             summary['data/agent_loss'] = np.mean(self.agent_loss[-m:])
 
         if 'vpg' in self.model_name or 'ppo' in self.model_name:
@@ -522,7 +553,7 @@ class Model():
             summary['data/clipped_ratio'] = np.mean(self.clipped_ratio[-m:])
             summary['data/n_clips'] = np.mean(self.n_clips[-m:])
 
-        if self.baseline!=None:
+        if self.baseline is not None:
             summary['data/baseline_loss'] = np.mean(self.baseline_loss[-m:])
             summary['data/baseline_value'] = np.mean(self.baseline_value[-m:])
 
@@ -540,8 +571,15 @@ class Model():
             self.writer.flush()
 
     def close(self):
+        """ close summary filewriters """
         if USE_TF:
             self.writer.close()
         elif USE_TFE:
             self.summary_writer.close()
+
+        if self.agent is not None:
+            self.agent.close()
+        if self.baseline is not None:
+            self.baseline.close()
+
 

@@ -5,10 +5,151 @@ matplotlib.use('PS')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.cm as cm
+import gym
+import cv2
 import sys
 
-class Maze:
-    """ class for creating maze environments """
+class AtariGame(object):
+    """ Environment wrapper for Atari Pong and Breakout
+
+    This class simplifies the interaction of the agent with the Breakout
+    environment. The API follows the OpenAI gym API.
+
+    Each frame (RGB image) of shape (210, 160, 3) will be rescaled to
+    grayscale (84,84,1).
+
+    The observation state contains 4 stacked frames and is of shape
+    (84,84,4)
+
+    The last frame results from the current action
+    while the previous 3 frames from the previous 3 actions.
+
+    Actions for Atari Pong and Breakout
+    0 (no operation)
+    1 (fire)
+    2 (right)
+    3 (left)
+    """
+    def __init__(self, env_name, seed):
+        self.env_name = env_name
+        self.seed = seed
+        self.env = gym.make(self.env_name)
+        self.env.seed(self.seed)
+
+        # remaining lives
+        self.lives = 0
+
+        # 4 frame stack
+        self.obs = np.zeros((84, 84, 4))
+        self.d_observation = (84,84,4)
+
+        # number of actions
+        self.n_actions = self.env.action_space.n
+
+    def reset(self):
+        """ Reset environment """
+
+        # reset game
+        obs = self.env.reset()
+
+        # fire = start the game
+        obs, reward, done, info = self.env.step(1)
+        obs = self.encode_obs(obs)  # (84, 84, 1)
+
+        self.lives = self.env.unwrapped.ale.lives() # 5
+        self.rewards = []
+        self.dones = []
+
+        # fill whole stack with current frame
+        self.obs[..., 0:] = obs
+        self.obs[..., 1:] = obs
+        self.obs[..., 2:] = obs
+        self.obs[..., 3:] = obs
+
+        return self.obs
+
+    def encode_obs(self, obs):
+        """ Convert one frame to gray scale, resize, normalise """
+        obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        obs = cv2.resize(obs, (84, 84), interpolation=cv2.INTER_AREA)
+        obs = obs.reshape(84, 84, 1).astype(np.float32)
+        obs = obs / 255.
+        return obs
+
+    def check_if_done(self, done, reward):
+        """ check whether episode terminated """
+        if 'Pong' in self.env_name:
+            if reward < 0.0:
+                done = True
+        elif 'Breakout' in self.env_name:
+            if self.lives > self.env.unwrapped.ale.lives():
+                done = True
+        return done
+
+    def step(self, action):
+        """ One environmental step
+
+        Args:
+            action (int): 0,1,2,3
+        Returns:
+            self.obs (np.array): observation tensor (84,84,4)
+            total_reward (float): sum of all rewards for each interaction
+            done (bool): if episode terminated
+
+        Given an action, the action is applied 4 times on the actual game, and
+        the last two frames are combined to form the final frame for
+        the given action. This final frame is then stacked on the observation
+        tensor.
+        """
+        total_reward = 0.
+        done = False
+        obs = None
+
+        # we take 4 steps in the game
+        for i in range(4):
+
+            prev_obs = obs
+            obs, reward, done, info = self.env.step(action)
+
+            if i == 0:
+                prev_obs = obs
+
+            # sum of rewards from each frame
+            total_reward += reward
+
+            # if a life is lost the episode ends
+            done = self.check_if_done(done, reward)
+
+            # episode has terminated
+            if done:
+                break
+
+        # Take the maximum of each pixel of the last two frames, which is
+        # important for the Breakout game, since one frame alone
+        # does not contain the full information of the observation.
+        obs = np.max(np.array([prev_obs, obs]), axis=0)
+
+        # Add the maximum of last two frames to the 4-frame stack.
+        obs = self.encode_obs(obs)
+        self.obs[..., -1:] = obs
+
+        return self.obs, total_reward, done, None
+
+    def render(self):
+        #matplotlib.use('TkAgg')
+        #canvas = self.obs[..., 3]
+        #plt.imshow(canvas, cmap=cm.gray, vmin=0., vmax=1.)
+        #plt.show()
+        self.env.render()
+
+    def close(self):
+        self.env.close()
+
+class Maze(object):
+    """ Environmental wrapper for custom 2D mazes
+
+    The API follows the OpenAI gym API.
+    """
     def __init__(self, layout, max_steps, entry, goal, reward):
         self.max_steps = max_steps
         self.n_actions = 4
@@ -147,17 +288,9 @@ def make_env(env_string, max_steps, reward=10, variation=False):
     if match:
         return make_empty_maze(int(match.group(1)), int(match.group(2)), max_steps, reward)
 
-    match = re.match('two_rooms_maze', env_string)
-    if match:
-        return make_two_rooms_maze(max_steps, reward)
-
     match = re.match('four_rooms_maze', env_string)
     if match:
         return make_four_rooms_maze(max_steps, reward, variation)
-
-    match = re.match('cheese_maze', env_string)
-    if match:
-        return make_cheese_maze(max_steps, reward)
 
     match = re.match('custom_maze', env_string)
     if match:
@@ -165,6 +298,7 @@ def make_env(env_string, max_steps, reward=10, variation=False):
     return None
 
 def make_empty_maze(h, w, max_steps, reward):
+    """ Empty maze environment """
     layout = np.ones(shape=(h,w), dtype=np.int)
     layout[0,:] = 0
     layout[-1,:] = 0
@@ -174,32 +308,8 @@ def make_empty_maze(h, w, max_steps, reward):
     goal = (h-2,w-2)
     return Maze(layout, max_steps, entry, goal, reward)
 
-def make_cheese_maze(max_steps, reward):
-    layout = np.ones(shape=(10,10), dtype=np.int)
-    layout[0,:] = 0
-    layout[-1,:] = 0
-    layout[:, 0] = 0
-    layout[:, -1] = 0
-    layout[:6, 3] = 0
-    layout[-6:, 6] = 0
-    entry = (1,1)
-    goal = (2,5)
-    return Maze(layout, max_steps, entry, goal, reward)
-
-
-def make_two_rooms_maze(max_steps, reward):
-    layout = np.ones(shape=(7,7), dtype=np.int)
-    layout[0,:] = 0
-    layout[-1,:] = 0
-    layout[:, 0] = 0
-    layout[:, -1] = 0
-    layout[:3, 3] = 0
-    layout[4:, 3] = 0
-    entry = (1,1)
-    goal = (5,5)
-    return Maze(layout, max_steps, entry, goal, reward)
-
 def make_four_rooms_maze(max_steps, reward, variation=False):
+    """ Four rooms maze environment """
     layout = np.ones(shape=(13,13), dtype=np.int)
     layout[0,:] = 0
     layout[-1,:] = 0
@@ -219,6 +329,7 @@ def make_four_rooms_maze(max_steps, reward, variation=False):
     return Maze(layout, max_steps, entry, goal, reward)
 
 def make_custom_maze(max_steps, reward):
+    """ Custom maze environment """
     layout = np.ones(shape=(7,7), dtype=np.int)
     layout[0,:] = 0
     layout[-1,:] = 0

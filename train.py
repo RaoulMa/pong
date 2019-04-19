@@ -1,45 +1,150 @@
 import os
+import ray
+from ray import tune
 import argparse
 import sys
 
-from utils import get_experiment_name
 from utils import dotdict
+from utils import get_experiment_name
+from utils import tf_events_to_csv
+from utils import subdir_paths
+from utils import plot_hp_sensitivities
+from utils import data_to_json
+
 from cfg import get_cfg
 from model import Model
 
+class RayModel(tune.Trainable):
+    """ ray model for hyperparameter search"""
+
+    def _setup(self, config):
+        """ initialise model """
+        cfg = dotdict(config['cfg'])
+        # each model is saved in a subdirectory of experiment_folder
+        cfg.experiment_folder = os.getcwd()
+        self.model = Model(cfg)
+
+    def _train(self):
+        """ one train step """
+        for _ in range(self.model.log_step):
+            if 'dqn' in self.model.model_name:
+                self.model.train_one_episode_with_dqn()
+            if 'ppo' in self.model.model_name:
+                self.model.train_one_batch_with_ppo()
+            if 'vpg' in self.model.model_name:
+                self.model.train_one_batch_with_vpg()
+            if 'rs' in self.model.model_name:
+                self.model.train_one_episode_with_rs()
+        return {'timesteps_this_iter': 1, 'mean_loss': - self.model.returns[-1] if len(self.model.returns)>0 else 0.}
+
+    def _stop(self):
+        self.model.save_model()
+        self.model.close()
+
+    def _save(self, checkpoint_dir):
+        pass
+
+    def _restore(self, checkpoint_filepath, summary_directory=None):
+        print('restore')
+        pass
+
 if __name__ == '__main__':
+    # arguments
+    parser = argparse.ArgumentParser(description='Hyperparameter Search')
+    parser.add_argument('--cpu', default=1, type=int, help='number of CPUs that should be used')
+    parser.add_argument('--gpu', default=0, type=int, help='number of GPUs that should be used')
+    args = parser.parse_args()
 
     # create experiment folder
     experiments_folder = os.path.join(os.getcwd(), 'results')
     experiment_name, experiment_folder = get_experiment_name(experiments_folder)
 
     # specify environment
-    env_name = 'four_rooms_maze'
-    env_name = 'CartPole-v0'
     env_name = 'BreakoutNoFrameskip-v4'
+    env_name = 'four_rooms_maze'
     env_name = 'Pong-v0'
+    env_name = 'CartPole-v0'
 
     # specify agent
-    agent_name = 'dqn'
-    agent_name = 'vpg'
-    agent_name = 'ppo'
+    agent_names  = ['dqn'
+                    #'vpg',
+                    #'ppo',
+                    ]
 
-    # load default config parameters
-    cfg_env, cfg_agent = get_cfg(experiment_folder, env_name, agent_name)
-    cfg = cfg_env
-    cfg.update(cfg_agent)
-    cfg = dotdict(cfg)
+    cfgs, cfg_spec = [], {}
 
-    # modify default config parameters
-    cfg.n_episodes = 10
-    cfg.batch_size = 1
-    cfg.log_step = 1
-    cfg.verbose = True
+    for agent_name in agent_names:
+        # get optimal/default hyperparameters
+        cfg_env, cfg_agent = get_cfg(experiment_folder, env_name, agent_name)
+        cfg = cfg_env
+        cfg.update(cfg_agent)
 
-    # load and train model
-    model = Model(cfg)
-    model.train_model()
+        # make hyperparameter changes from default ones
+        cfg['n_episodes'] = 1000
+        cfg['log_step'] = 1000
+        cfg['batch_size'] = 1
+        # cfg['clip_int_reward'] = 0.0
+        # cfg['env_reward'] = 0.0
+        # cfg['observation_encoding'] = 'one_hot'
+        # cfg['clip_range'] = 0.2
+        # cfg['baseline'] = 'advantage'
+        # cfg['agent_d_hidden_layers'] = [16]
 
+        # choose several seeds
+        for i in range(1):
+            cfg['seed'] = i
+            cfgs.append(cfg.copy())
+
+        cfg_spec[agent_name] = cfg_agent
+
+    cfg_spec['env'] = cfg_env
+    fpath = os.path.join(experiment_folder, 'cfg_spec.json')
+    data_to_json(cfg_spec, fpath)
+
+    cfgs = tune.grid_search(cfgs)
+    tune.register_trainable('Model', RayModel)
+    train_spec = {
+        'run': 'Model',
+        'trial_resources': {'cpu': args.cpu, 'gpu': args.gpu},
+        'stop': {'timesteps_total': cfg['n_episodes'] // cfg['log_step']},
+        'local_dir': experiments_folder,
+        'num_samples': 1,
+        'config': {
+            'cfg': dict(cfgs)
+        },
+        'checkpoint_at_end': False
+    }
+    fpath = os.path.join(experiment_folder, 'train_spec.json')
+    data_to_json(train_spec, fpath)
+
+    # run experiments
+    ray.init(temp_dir='~/tmp/ray/')
+    tune.run_experiments({experiment_name: train_spec})
+
+    # for seed in range(1):
+    #     # load default config parameters
+    #     cfg_env, cfg_agent = get_cfg(experiment_folder, env_name, agent_name)
+    #     cfg = cfg_env
+    #     cfg.update(cfg_agent)
+    #     cfg = dotdict(cfg)
+    #
+    #     # modify default config parameters
+    #     cfg.n_episodes = 10
+    #     cfg.batch_size = 1
+    #     cfg.log_step = 1
+    #     cfg.seed = seed
+    #     cfg.experiment_folder = os.path.join(experiment_folder,'Model_{}'.format(seed))
+    #
+    #     # train model
+    #     model = Model(cfg)
+    #     model.train_model()
+
+    # tf events to csv
+    for dpath in subdir_paths(experiment_folder):
+        tf_events_to_csv(dpath)
+
+    # create plot
+    plot_hp_sensitivities(experiment_folder, 'ext_return', 'model_name', {}, True, 1, False)
 
 
 

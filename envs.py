@@ -46,6 +46,12 @@ class AtariGame(object):
         # number of actions
         self.n_actions = self.env.action_space.n
 
+        # number of frames per step
+        if 'Pong' in self.env_name:
+            self.n_frames = 2
+        elif 'Breakout' in self.env_name:
+            self.n_frames = 4
+
     def reset(self):
         """ Reset environment """
 
@@ -69,9 +75,10 @@ class AtariGame(object):
         return self.obs
 
     def encode_obs(self, obs):
-        """ Convert one frame to gray scale, resize, normalise """
+        """ Convert one frame to gray scale, resize, crop, normalise """
         obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
-        obs = cv2.resize(obs, (84, 84), interpolation=cv2.INTER_AREA)
+        obs = cv2.resize(obs, (84, 110), interpolation=cv2.INTER_AREA)
+        obs = obs[17:101, :] # crop playing area
         obs = obs.reshape(84, 84, 1).astype(np.float32)
         obs = obs / 255.
         return obs
@@ -80,11 +87,16 @@ class AtariGame(object):
         """ check whether episode terminated """
         if 'Pong' in self.env_name:
             if reward < 0.0:
-                done = True
+                return True
         elif 'Breakout' in self.env_name:
             if self.lives > self.env.unwrapped.ale.lives():
-                done = True
+                return True
         return done
+
+    def reward_shaping(self, reward):
+        if 'Pong' in self.env_name:
+            return (reward + 1.0/self.n_frames)
+        return reward
 
     def step(self, action):
         """ One environmental step
@@ -105,11 +117,12 @@ class AtariGame(object):
         done = False
         obs = None
 
-        # we take 4 steps in the game
-        for i in range(4):
+        # number of frames per step
+        for i in range(self.n_frames):
 
             prev_obs = obs
             obs, reward, done, info = self.env.step(action)
+            reward = self.reward_shaping(reward)
 
             if i == 0:
                 prev_obs = obs
@@ -130,6 +143,7 @@ class AtariGame(object):
         obs = np.max(np.array([prev_obs, obs]), axis=0)
 
         # Add the maximum of last two frames to the 4-frame stack.
+        # Taking the maximum avoids flickering images of Atari
         obs = self.encode_obs(obs)
         self.obs[..., -1:] = obs
 
@@ -137,8 +151,7 @@ class AtariGame(object):
 
     def render(self):
         #matplotlib.use('TkAgg')
-        #canvas = self.obs[..., 3]
-        #plt.imshow(canvas, cmap=cm.gray, vmin=0., vmax=1.)
+        #plt.imshow(self.obs[:,:,-1], cmap=cm.gray, vmin=0., vmax=1.)
         #plt.show()
         self.env.render()
 

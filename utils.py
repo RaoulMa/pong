@@ -216,11 +216,9 @@ def plot_hp_sensitivities(experiment_folder, variable_name, hp_name, hp_fixed={}
     df[variable_name] = y_values
     df[hp_name] = hp_values
 
-    info = {'env_max_steps': cfg.env_max_steps,
-            'env_reward': cfg.env_reward}
     # plot
     fname = variable_name + '_versus_' + hp_name + '.png'
-    title = cfg.env_name + str(info)
+    title = cfg.env_name
     fpath = os.path.join(experiment_folder, fname)
     footnote = None
     if details:
@@ -230,7 +228,7 @@ def plot_hp_sensitivities(experiment_folder, variable_name, hp_name, hp_fixed={}
 def read_tf_events(dpath, event_name=None):
     """ read tf events """
     fnames = os.listdir(dpath)
-    event_fnames = [fname for fname in fnames if 'events.out.tfevents' in fname]
+    event_fnames = [fname for fname in fnames if 'tf.events.model' in fname]
     summary_iterators = [EventAccumulator(os.path.join(dpath, dname)).Reload() for dname in event_fnames]
     out = defaultdict(list)
     steps = []
@@ -256,7 +254,7 @@ def read_tf_events(dpath, event_name=None):
 def tf_events_to_csv(dpath):
     """ write all tf events to csv files """
     fnames = os.listdir(dpath)
-    event_fnames = [fname for fname in fnames if 'events.out.tfevents' in fname]
+    event_fnames = [fname for fname in fnames if 'tf.events.model' in fname]
     out, steps = read_tf_events(dpath)
     tags, values = zip(*out.items())
     np_values = np.array(values)

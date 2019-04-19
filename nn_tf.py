@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import os
+import copy
 import sys
 
 from utils import advantage_values
@@ -36,7 +37,7 @@ class FNN():
             else:
                 self.activation = tf.nn.tanh
 
-            # neural network with dense layers
+            # Neural network with dense layers
             # e.g. for CartPole, 2D Mazes
             if nn_type == 'dense':
                 self.d_hidden_layers = d_hidden_layers
@@ -69,8 +70,9 @@ class FNN():
                     self.layers_.append(outputs)
                     self.outputs = outputs
 
-            # neural network with convolutional and dense layers
-            # e.g. for Pong, Breakout
+            # Neural network for Pong, Breakout.
+            # The architecture follows the one used in
+            # Mnih et. al. "Human-level control through deep reinforcement learning "
             elif nn_type == 'convolution':
                 self.layers_ = prev_layers
 
@@ -264,7 +266,7 @@ class PPOAgent(FNN):
         from the old policy and update the current policy wrt to the clipped
         surrogate objective. If the ratio for one (s_t, a_t) pair is outside
         the allowed region, the objective gets clipped, which means that the
-        corresponding gradient is zero.
+        corresponding gradient is zero. On-policy algorithm.
     """
     def __init__(self, d_input, d_hidden_layers, d_output, learning_rate,
                  reward_discount_factor, clip_range, nn_type, activation, baseline_cfg,
@@ -276,6 +278,10 @@ class PPOAgent(FNN):
         self.learning_rate = learning_rate
         self.clip_range = clip_range
         self.reward_discount_factor = reward_discount_factor
+
+        # dictionary to store one batch of sampled trajectories
+        # as well as corresponding policies, advantages etc...
+        self.sample = {}
 
         self.baseline = None
         if 'advantage' in baseline_cfg.baseline:
@@ -303,46 +309,32 @@ class PPOAgent(FNN):
                                                    'dense',
                                                    activation,
                                                    experiment_folder, 'baseline')
-
-        # network that keeps the old policy weights
-        self.old_fnn = FNN(d_input, d_hidden_layers, d_output, learning_rate,
-                           [], nn_type, activation, experiment_folder, 'old_fnn')
-
-        # current policy
+        # logits, policy, log_policy
         self.logits = self.layers_[-1]
         self.policy = tf.nn.softmax(self.logits)
         self.log_policy = tf.nn.log_softmax(self.logits)
 
-        # old policy which is not updated by gradient descent
-        self.old_logits = tf.stop_gradient(self.old_fnn.layers_[-1])
-        self.old_policy = tf.nn.softmax(self.old_logits)
-        self.log_old_policy = tf.nn.log_softmax(self.old_logits)
+        # sampled actions
+        self.sampled_actions = tf.placeholder(shape=(None, self.d_output), dtype=tf.float32)
 
-        # placeholder for taken actions
-        self.actions = tf.placeholder(shape=(None, self.d_output), dtype=tf.float32)
+        # log probabilities of sampled actions
+        # log p(a_t|s_t, theta) for given (s_t, a_t) pairs
+        self.log_policy_of_actions = tf.reduce_sum(self.log_policy * self.sampled_actions, axis=1)
 
-        # current policy: log probabilities for taken actions
-        # current log policy: log p(a_t|s_t, theta) for given (s_t, a_t) pairs
-        self.log_proba = tf.reduce_sum(self.actions * self.log_policy, axis=1)
+        # sampled log probabilities of actions
+        self.sampled_log_policy_of_actions = tf.placeholder(shape=(None,), dtype=tf.float32)
 
-        # old policy: log probabilities for taken actions
-        # old log policy: log p(a_t|s_t, theta_old) for given (s_t, a_t) pairs
-        self.log_old_policy_for_actions = tf.reduce_sum(self.log_old_policy * self.actions, axis=1)
+        # sampled advantages
+        self.sampled_advantages = tf.placeholder(shape=(None,), dtype=tf.float32)
 
-        # old policy placholder: log probabilities for taken actions
-        self.log_old_policy_for_actions_ph = tf.placeholder(shape=(None,), dtype=tf.float32)
-
-        # current log policy: log p(a_t|s_t, theta) for given (s_t, a_t) pairs
-        self.log_policy_for_actions = tf.reduce_sum(self.log_policy * self.actions, axis=1)
-
-        # ratio: r_t(theta) = p(a_t|s_t, theta) / p(a_t|s_t, theta_old)
-        self.ratio = tf.exp(self.log_policy_for_actions - self.log_old_policy_for_actions_ph)
+        # ratio
+        # r_t(theta) = p(a_t|s_t, theta) / p(a_t|s_t, theta_old)
+        self.ratio = tf.exp(self.log_policy_of_actions - self.sampled_log_policy_of_actions)
 
         # clipped policy objective that should be maximised
-        self.crewards = tf.placeholder(shape=(None,), dtype=tf.float32)
         self.clipped_ratio = tf.clip_by_value(self.ratio, 1.0 - self.clip_range, 1.0 + self.clip_range)
-        self.policy_loss = - tf.reduce_mean(tf.minimum(self.ratio * self.crewards,
-                                                       self.clipped_ratio * self.crewards), axis=0)
+        self.policy_loss = - tf.reduce_mean(tf.minimum(self.ratio * self.sampled_advantages,
+                                                       self.clipped_ratio * self.sampled_advantages), axis=0)
 
         # entropy loss (exploration bonus)
         self.entropy_loss = tf.reduce_mean(tf.reduce_sum(self.policy * self.log_policy, axis=1), axis=0)
@@ -363,9 +355,6 @@ class PPOAgent(FNN):
         self.session = tf.Session(config=config_tf)
         self.session.run(tf.global_variables_initializer())
 
-        # set trainable variables equal in both networks
-        self.copy_trainable_variables(self.nn_name, self.old_fnn.nn_name)
-
         # set baseline session
         if self.baseline is not None:
             self.baseline.init_session(self.saver, self.session)
@@ -376,26 +365,17 @@ class PPOAgent(FNN):
     def get_trainable_variables(self, nn_name):
         return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=nn_name)
 
-    def copy_trainable_variables(self, src_name, dest_name):
-        """ copy weights from source to destination network """
-        src_vars = self.get_trainable_variables(src_name)
-        dest_vars = self.get_trainable_variables(dest_name)
-        op_list = []
-        for src_var, dest_var in zip(src_vars, dest_vars):
-            op_list.append(dest_var.assign(src_var.value()))
-        self.session.run(op_list)
-
     def action(self, obs):
         """ return action and policy """
-        # note we take actions according to the old policy
-        feed = {self.old_fnn.observations: obs}
-        old_policy = self.session.run(self.old_policy, feed)[0] + 1e-6
-        old_policy /= np.sum(old_policy)
-        action = np.argmax(np.random.multinomial(1, old_policy))
-        return action, old_policy
+        feed = {self.observations: obs}
+        policy = self.session.run(self.policy, feed)[0] + 1e-6
+        policy /= np.sum(policy)
+        action = np.argmax(np.random.multinomial(1, policy))
+        return action, policy
 
     def update(self, obs_batch, action_batch, reward_batch, done_batch):
         """ one gradient step update """
+
         # cumulative rewards
         creward_batch = cumulative_rewards(reward_batch, self.reward_discount_factor)
 
@@ -403,10 +383,10 @@ class PPOAgent(FNN):
         obs = np.squeeze(np.vstack(obs_batch).astype(np.float32))
         actions = np.vstack(action_batch).astype(np.float32)
         crewards = np.hstack(creward_batch).astype(np.float32)
-        stats = {'obs': obs, 'crewards': crewards}
 
         # use advantage baseline
-        if self.baseline!=None:
+        advantages = crewards
+        if self.baseline is not None:
             state_value_batch = []
             for i in range(len(obs_batch)):
                 state_values = np.reshape(self.baseline.forward(np.vstack(obs_batch[i]).astype(np.float32)),[-1])
@@ -416,33 +396,45 @@ class PPOAgent(FNN):
                                                self.baseline.reward_discount_factor,
                                                self.baseline.gae_lamda)
             advantages = np.hstack(advantage_batch).astype(np.float32)
-            stats['baseline_value'] = np.mean(advantages)
-            crewards = advantages
 
-        feed = {self.observations: obs, self.old_fnn.observations: obs,
-                self.actions: actions, self.crewards: crewards}
+        feed = {self.observations: obs,
+                self.sampled_actions: actions,
+                self.sampled_advantages: advantages}
+        policy, log_policy, log_policy_of_actions = self.session.run([self.policy,
+                                                                      self.log_policy,
+                                                                      self.log_policy_of_actions], feed)
+        # deep copy of sampled trajectories from old policy
+        old_sample = copy.deepcopy(self.sample)
 
-        # calculate log old policy for taken actions
-        log_old_policy_for_actions = self.session.run(self.log_old_policy_for_actions, feed)
-        feed[self.log_old_policy_for_actions_ph] = log_old_policy_for_actions
+        # store current sample
+        self.sample = {}
+        self.sample['obs'] = obs
+        self.sample['actions'] = actions
+        self.sample['advantages'] = advantages
+        self.sample['log_policy_of_actions'] = log_policy_of_actions
 
-        # update old policy network to current policy network
-        self.copy_trainable_variables(self.nn_name, self.old_fnn.nn_name)
+        # at start the old policy is equals the current policy
+        if len(old_sample) == 0:
+            old_sample = copy.deepcopy(self.sample)
 
-#        print(self.session.run(self.get_trainable_variables('ppo'))[0][0][0][0])
-#        print(self.baseline.session.run(self.get_trainable_variables('baseline'))[0][:10])
-
-        # train current policy network
-        loss, ratio, clipped_ratio, _, policy_loss, entropy_loss = self.session.run([self.loss, self.ratio,
+        # train policy with old sample of trajectories
+        feed = {self.observations: old_sample['obs'],
+                self.sampled_actions: old_sample['actions'],
+                self.sampled_advantages: old_sample['advantages'],
+                self.sampled_log_policy_of_actions: old_sample['log_policy_of_actions']}
+        loss, ratio, clipped_ratio, _, policy_loss, entropy_loss = self.session.run([self.loss,
+                                                                                     self.ratio,
                                                                                      self.clipped_ratio,
                                                                                      self.train_op,
                                                                                      self.policy_loss,
                                                                                      self.entropy_loss], feed)
-
-#        print(self.session.run(self.get_trainable_variables('ppo'))[0][0][0][0])
-#        print(self.baseline.session.run(self.get_trainable_variables('baseline'))[0][:10])
-
         self.global_step += 1
+
+        # statistics
+        stats = {}
+        stats['crewards'] = crewards
+        stats['obs'] = obs
+        stats['baseline_value'] = np.mean(advantages)
         stats['ratio'] = np.mean(ratio)
         stats['clipped_ratio'] = np.mean(clipped_ratio)
         stats['n_clips'] = sum(diff > 10e-6 for diff in ratio - clipped_ratio)
@@ -450,19 +442,9 @@ class PPOAgent(FNN):
         stats['entropy_loss'] = entropy_loss
 
         # monte carlo update of baseline
-        if self.baseline!=None:
-
-#            print(self.session.run(self.get_trainable_variables('ppo'))[0][0][0][0])
-#            print(self.baseline.session.run(self.get_trainable_variables('baseline'))[0][:10])
-
-            obs = stats['obs']
-            crewards = stats['crewards']
+        if self.baseline is not None:
             baseline_loss, _ = self.baseline.mc_update(obs, crewards)
             stats['baseline_loss'] = baseline_loss
-
-#            print(self.session.run(self.get_trainable_variables('ppo'))[0][0][0][0])
-#            print(self.baseline.session.run(self.get_trainable_variables('baseline'))[0][:10])
-
         return loss, _ , stats
 
 class DQNAgent(FNN):
@@ -576,9 +558,7 @@ class DQNAgent(FNN):
         return loss, _
 
 class StateValueFunction(FNN):
-    """ State-Value Function
-        trained via Monte-Carlo or Temporal-Difference learning (td0)
-    """
+    """ State-Value Function trained via Monte-Carlo """
     def __init__(self, d_input, d_hidden_layers, d_output, learning_rate,
                  reward_discount_factor, gae_lamda,
                  prev_layers=[], nn_type='dense', activation='tanh',

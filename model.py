@@ -8,8 +8,8 @@ import pandas as pd
 import time
 import sys
 
-from envs import make_env
 from envs import AtariGame
+from envs import make_env
 from utils import dotdict
 from utils import one_hot
 from utils import json_to_data
@@ -124,7 +124,7 @@ class Model(object):
 
         # baseline dependent hyperparameters
         baseline_cfg = dotdict({'baseline': cfg.baseline})
-        if cfg.baseline is not 'None':
+        if cfg.baseline != 'None':
             self.baseline_value, self.baseline_loss = [], []
             baseline_cfg = dotdict({'baseline': cfg.baseline,
                                     'learning_rate': cfg.baseline_learning_rate,
@@ -196,7 +196,8 @@ class Model(object):
                 description += '_maxsteps_' + str(cfg.env_max_steps) + '_reward_' + str(cfg.env_reward)
 
             if USE_TF:
-                self.writer = tf.summary.FileWriter(self.cfg.experiment_folder)
+                # use an own suffix to distinguish from ray tf events
+                self.writer = tf.summary.FileWriter(self.cfg.experiment_folder, filename_suffix = 'tf.events.model')
 
             if USE_TFE:
                 self.summary_writer = tf.contrib.summary.create_file_writer(cfg.experiment_folder, flush_millis=10000)
@@ -249,7 +250,7 @@ class Model(object):
         return action
 
     def add_to_buffer(self, obs, action, next_obs, reward, done):
-        if self.agent!=None:
+        if self.agent is not None:
             self.agent_buffer.append([obs, action, next_obs, reward, done])
 
     def dqn_update(self):
@@ -345,12 +346,12 @@ class Model(object):
 
             obs = next_obs
 
+            if self.step_number % self.log_step == 0:
+                self.print_logs()
+                self.write_summary()
+
         if 'maze' in self.env_name:
             self.states_visited.update(self.env.visited)
-
-        if self.episode_number % self.log_step == 0:
-            self.print_logs()
-            self.write_summary()
 
     def train_one_batch_with_vpg(self):
         """ vanilla policy gradient training """
@@ -392,17 +393,14 @@ class Model(object):
                 reward_batch[-1].append(reward)
                 self.returns[-1] += reward
 
-                # add transition to buffer
-                self.add_to_buffer(obs, action, next_obs, reward, done)
-
                 obs = next_obs
+
+                if self.step_number % self.log_step == 0:
+                    self.print_logs()
+                    self.write_summary()
 
             if 'maze' in self.env_name:
                 self.states_visited.update(self.env.visited)
-
-            if self.batch_number > 0 and self.episode_number % self.log_step == 0:
-                self.print_logs()
-                self.write_summary()
 
         # update agent
         self.vpg_update(obs_batch, action_batch, reward_batch, done_batch)
@@ -452,17 +450,15 @@ class Model(object):
                 reward_batch[-1].append(reward)
                 self.returns[-1] += reward
 
-                # add transition to buffer
-                self.add_to_buffer(obs, action, next_obs, reward, done)
-
                 obs = next_obs
+
+                if self.step_number % self.log_step == 0:
+                    self.print_logs()
+                    self.write_summary()
 
             if 'maze' in self.env_name:
                 self.states_visited.update(self.env.visited)
 
-            if self.batch_number > 1 and self.episode_number % self.log_step == 0:
-                self.print_logs()
-                self.write_summary()
 
         # update agent
         self.ppo_update(obs_batch, action_batch, reward_batch, done_batch)
@@ -493,21 +489,22 @@ class Model(object):
 
     def print_logs(self):
         """ print log information """
-        stats = self.simulate()
-        self.returns_test.append(stats[0])
+        #stats = self.simulate()
+        #self.returns_test.append(stats[0])
 
         m = 20
-        print_str = 'ep {} st {} {} e.ret.tr {:.2f} e.ret.ts {:.2f} '.format(
+        print_str = 'ep {} st {} {} e.ret.tr {:.2f} '.format(
             self.episode_number,
             self.step_number,
             self.model_name,
-            np.mean(self.returns[-m:]),
-            np.mean(self.returns_test[-1]))
+            np.mean(self.returns[-m:])
+            #np.mean(self.returns_test[-1])
+        )
 
         if self.agent is not None:
-            print_str += 'ag.ls {:.2f} '.format(np.mean(self.agent_loss[-m:]))
+            print_str += 'ag.ls {:.2f} '.format(np.mean(self.agent_loss[-m:]) if len(self.agent_loss)>0 else 0.)
         if self.baseline is not None:
-            print_str += 'bs.ls {:.2f} '.format(np.mean(self.baseline_loss[-m:]))
+            print_str += 'bs.ls {:.2f} '.format(np.mean(self.baseline_loss[-m:]) if len(self.baseline_loss)>0 else 0.)
         if 'dqn' in self.model_name:
             print_str += 'eps {:.2f} '.format(self.epsilon)
         if 'maze' in self.env_name:
@@ -538,32 +535,33 @@ class Model(object):
     def write_summary(self):
         """ write tensorflow summaries """
         m = 20
-        summary = {'data/ext_return': np.mean(self.returns[-m:])}
+        summary = {'data/ext_return': np.mean(self.returns[-m:])} if len(self.returns)>0 else 0.
 
         if self.agent is not None:
-            summary['data/agent_loss'] = np.mean(self.agent_loss[-m:])
+            summary['data/agent_loss'] = np.mean(self.agent_loss[-m:]) if len(self.agent_loss)>0 else 0.
 
         if 'vpg' in self.model_name or 'ppo' in self.model_name:
-            summary['data/crewards'] = np.mean(self.crewards[-m:])
+            summary['data/crewards'] = np.mean(self.crewards[-m:]) if len(self.crewards)>0 else 0.
 
         if 'ppo' in self.model_name:
-            summary['data/entropy_loss'] = np.mean(self.entropy_loss[-m:])
-            summary['data/policy_loss'] = np.mean(self.policy_loss[-m:])
-            summary['data/ratio'] = np.mean(self.ratio[-m:])
-            summary['data/clipped_ratio'] = np.mean(self.clipped_ratio[-m:])
-            summary['data/n_clips'] = np.mean(self.n_clips[-m:])
+            summary['data/entropy_loss'] = np.mean(self.entropy_loss[-m:]) if len(self.baseline_loss)>0 else 0.
+            summary['data/policy_loss'] = np.mean(self.policy_loss[-m:]) if len(self.policy_loss)>0 else 0.
+            summary['data/ratio'] = np.mean(self.ratio[-m:]) if len(self.ratio)>0 else 0.
+            summary['data/clipped_ratio'] = np.mean(self.clipped_ratio[-m:]) if len(self.clipped_ratio)>0 else 0.
+            summary['data/n_clips'] = np.mean(self.n_clips[-m:]) if len(self.n_clips)>0 else 0.
 
         if self.baseline is not None:
-            summary['data/baseline_loss'] = np.mean(self.baseline_loss[-m:])
-            summary['data/baseline_value'] = np.mean(self.baseline_value[-m:])
+            summary['data/baseline_loss'] = np.mean(self.baseline_loss[-m:]) if len(self.baseline_loss)>0 else 0.
+            summary['data/baseline_value'] = np.mean(self.baseline_value[-m:]) if len(self.baseline_value)>0 else 0.
 
         if 'maze' in self.env_name:
-            summary['data/n_states_visited'] = len(self.states_visited)
+            summary['data/n_states_visited'] = len(self.states_visited) if len(self.states_visited)>0 else 0.
 
         for key in summary.keys():
             if USE_TF:
                 summary_value = tf.Summary.Value(tag=key, simple_value=summary[key])
                 self.writer.add_summary(tf.Summary(value=[summary_value]), global_step=self.global_step)
+
             elif USE_TFE:
                 with self.summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
                     tf.contrib.summary.scalar(key, summary[key], step=self.global_step)

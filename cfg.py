@@ -14,12 +14,10 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'seed': 1,
             'global_step': 0,
             'reward_discount_factor': 0.99,
-            'epsilon': 1.,
-            'epsilon_discount_factor': 0.999,
             'time_reward': 0.0,
             'n_episodes': 10000,
             'log_step': 100,
-            'agent_buffer_size': 100000,
+            'agent_buffer_size': 1000000,
             'agent_buffer_batch_size': 32,
             'observation_encoding': 'None',
             'activation': 'relu',
@@ -30,11 +28,31 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'model_name': 'ppo',
                 'batch_size': 4,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.001,
+                'agent_learning_rate': 0.0005,
                 'clip_range': 0.1,
                 'baseline_d_hidden_layers': [],
-                'baseline_learning_rate': 0.001,
+                'baseline_learning_rate': 0.0005,
                 'baseline': 'shared_advantage',
+            })
+        if agent_name == 'vpg':
+            cfg_agent = dotdict({
+                'model_name': 'vpg',
+                'batch_size': 4,
+                'agent_d_hidden_layers': [32],
+                'agent_learning_rate': 0.0005,
+                'baseline_d_hidden_layers': [32],
+                'baseline_learning_rate': 0.0005,
+                'baseline': 'shared_advantage',
+            })
+        if agent_name == 'dqn':
+            cfg_agent = dotdict({
+                'model_name': 'dqn',
+                'update_target_network_freq': 100,
+                'agent_d_hidden_layers': [32],
+                'agent_learning_rate': 0.0005,
+                'baseline': 'None',
+                'epsilon': 1.,
+                'epsilon_discount_factor': 0.9999,
             })
 
     """ 
@@ -48,12 +66,10 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'seed': 1,
             'global_step': 0,
             'reward_discount_factor': 0.99,
-            'epsilon': 1.,
-            'epsilon_discount_factor': 0.999,
             'time_reward': 0.0,
             'n_episodes': 10000,
             'log_step': 100,
-            'agent_buffer_size': 100000,
+            'agent_buffer_size': 1000000,
             'agent_buffer_batch_size': 32,
             'observation_encoding': 'None',
             'activation': 'relu',
@@ -64,15 +80,35 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'model_name': 'ppo',
                 'batch_size': 4,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.001,
+                'agent_learning_rate': 0.0005,
                 'clip_range': 0.1,
                 'baseline_d_hidden_layers': [],
                 'baseline_learning_rate': 0.001,
                 'baseline': 'shared_advantage',
             })
+        if agent_name == 'vpg':
+            cfg_agent = dotdict({
+                'model_name': 'vpg',
+                'batch_size': 4,
+                'agent_d_hidden_layers': [32],
+                'agent_learning_rate': 0.0005,
+                'baseline_d_hidden_layers': [32],
+                'baseline_learning_rate': 0.0005,
+                'baseline': 'advantage',
+            })
+        if agent_name == 'dqn':
+            cfg_agent = dotdict({
+                'model_name': 'dqn',
+                'update_target_network_freq': 100,
+                'agent_d_hidden_layers': [32],
+                'agent_learning_rate': 0.0005,
+                'epsilon': 1.,
+                'epsilon_discount_factor': 0.9999,
+                'baseline': 'None'
+            })
 
     """ 
-    Four Rooms Maze
+    Four-Rooms Maze
     """
     if env_name == 'four_rooms_maze':
         cfg_env = dotdict({
@@ -89,7 +125,7 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'log_step': 100,
             'agent_buffer_size': 100000,
             'agent_buffer_batch_size': 32,
-            'observation_encoding': 'one_hot',
+            'observation_encoding': 'normalise',
             'activation': 'relu',
             'gae_lamda': 0.97,
         })
@@ -121,7 +157,7 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'agent_d_hidden_layers': [32],
                 'agent_learning_rate': 0.001,
                 'epsilon': 1.,
-                'epsilon_discount_factor': 0.999,
+                'epsilon_discount_factor': 0.9999,
                 'baseline': 'None'
             })
 
@@ -139,9 +175,7 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'log_step': 100,
             'global_step': 0,
             'reward_discount_factor': 0.99,
-            'epsilon': 1.,
-            'epsilon_discount_factor': 0.99,
-            'agent_buffer_size': 10000,
+            'agent_buffer_size': 1000000,
             'agent_buffer_batch_size': 32,
             'activation': 'relu',
             'gae_lamda': 0.97,
@@ -172,6 +206,8 @@ def get_cfg(experiment_folder, env_name, agent_name):
         if agent_name == 'dqn':
             cfg_agent = dotdict({
                 'model_name': 'dqn',
+                'epsilon': 1.,
+                'epsilon_discount_factor': 0.99,
                 'update_target_network_freq': 100,
                 'agent_d_hidden_layers': [32],
                 'agent_learning_rate': 0.001,

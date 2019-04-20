@@ -20,21 +20,28 @@ class RayModel(tune.Trainable):
     def _setup(self, config):
         """ initialise model """
         cfg = dotdict(config['cfg'])
+
         # each model is saved in a subdirectory of experiment_folder
         cfg.experiment_folder = os.getcwd()
         self.model = Model(cfg)
 
+        self.step_number = 0
+
     def _train(self):
         """ one train step """
-        for _ in range(self.model.log_step):
+        self.step_number = self.model.step_number
+
+        while (self.model.step_number <= self.model.n_steps
+               and self.model.step_number <= (self.step_number + self.model.log_step)):
             if 'dqn' in self.model.model_name:
                 self.model.train_one_episode_with_dqn()
-            if 'ppo' in self.model.model_name:
-                self.model.train_one_batch_with_ppo()
-            if 'vpg' in self.model.model_name:
-                self.model.train_one_batch_with_vpg()
-            if 'rs' in self.model.model_name:
+            elif 'rs' in self.model.model_name:
                 self.model.train_one_episode_with_rs()
+            elif 'ppo' in self.model.model_name:
+                self.model.train_one_batch_with_ppo()
+            elif 'vpg' in self.model.model_name:
+                self.model.train_one_batch_with_vpg()
+
         return {'timesteps_this_iter': 1, 'mean_loss': - self.model.returns[-1] if len(self.model.returns)>0 else 0.}
 
     def _stop(self):
@@ -52,7 +59,7 @@ if __name__ == '__main__':
     # arguments
     parser = argparse.ArgumentParser(description='Hyperparameter Search')
     parser.add_argument('--cpu', default=1, type=int, help='number of CPUs that should be used')
-    parser.add_argument('--gpu', default=0, type=int, help='number of GPUs that should be used')
+    parser.add_argument('--gpu', default=1, type=int, help='number of GPUs that should be used')
     args = parser.parse_args()
 
     # create experiment folder
@@ -62,13 +69,13 @@ if __name__ == '__main__':
     # specify environment
     env_name = 'BreakoutNoFrameskip-v4'
     env_name = 'four_rooms_maze'
-    env_name = 'Pong-v0'
     env_name = 'CartPole-v0'
+    env_name = 'Pong-v0'
 
     # specify agent
-    agent_names  = ['dqn'
+    agent_names  = [#'dqn',
                     #'vpg',
-                    #'ppo',
+                    'ppo',
                     ]
 
     cfgs, cfg_spec = [], {}
@@ -80,15 +87,9 @@ if __name__ == '__main__':
         cfg.update(cfg_agent)
 
         # make hyperparameter changes from default ones
-        cfg['n_episodes'] = 1000
-        cfg['log_step'] = 1000
-        cfg['batch_size'] = 1
-        # cfg['clip_int_reward'] = 0.0
-        # cfg['env_reward'] = 0.0
-        # cfg['observation_encoding'] = 'one_hot'
-        # cfg['clip_range'] = 0.2
-        # cfg['baseline'] = 'advantage'
-        # cfg['agent_d_hidden_layers'] = [16]
+        cfg['n_steps'] = 1000000      # total number of training steps
+        cfg['batch_size'] = 4         # batch size in terms of episodes
+        cfg['log_step'] = 1000        # in terms of step numbers
 
         # choose several seeds
         for i in range(1):
@@ -106,7 +107,7 @@ if __name__ == '__main__':
     train_spec = {
         'run': 'Model',
         'trial_resources': {'cpu': args.cpu, 'gpu': args.gpu},
-        'stop': {'timesteps_total': cfg['n_episodes'] // cfg['log_step']},
+        'stop': {'timesteps_total': cfg['n_steps']//cfg['log_step']},
         'local_dir': experiments_folder,
         'num_samples': 1,
         'config': {
@@ -120,24 +121,6 @@ if __name__ == '__main__':
     # run experiments
     ray.init(temp_dir='~/tmp/ray/')
     tune.run_experiments({experiment_name: train_spec})
-
-    # for seed in range(1):
-    #     # load default config parameters
-    #     cfg_env, cfg_agent = get_cfg(experiment_folder, env_name, agent_name)
-    #     cfg = cfg_env
-    #     cfg.update(cfg_agent)
-    #     cfg = dotdict(cfg)
-    #
-    #     # modify default config parameters
-    #     cfg.n_episodes = 10
-    #     cfg.batch_size = 1
-    #     cfg.log_step = 1
-    #     cfg.seed = seed
-    #     cfg.experiment_folder = os.path.join(experiment_folder,'Model_{}'.format(seed))
-    #
-    #     # train model
-    #     model = Model(cfg)
-    #     model.train_model()
 
     # tf events to csv
     for dpath in subdir_paths(experiment_folder):

@@ -156,7 +156,7 @@ class VPGAgent(FNN):
         self.reward_discount_factor = reward_discount_factor
         self.baseline = None
 
-        # add baseline
+        self.baseline = None
         if 'advantage' in baseline_cfg.baseline:
             if 'shared' in baseline_cfg.baseline:
                 # baseline sharing layers with policy except for the last layer
@@ -204,8 +204,9 @@ class VPGAgent(FNN):
         self.init_session()
 
     def init_session(self):
-        config_tf = tf.ConfigProto(device_count={'GPU': 0})
-        self.session = tf.Session(config=config_tf)
+#        config_tf = tf.ConfigProto(device_count={'GPU': 0})
+#        self.session = tf.Session(config=config_tf)
+        self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
 
         # set baseline session
@@ -213,7 +214,7 @@ class VPGAgent(FNN):
             self.baseline.init_session(self.saver, self.session)
 
     def action(self, obs):
-        policy = self.session.run(self.policy, {self.observations: obs.reshape(1,-1)})[0]
+        policy = self.session.run(self.policy, {self.observations: obs})[0]
         action = np.argmax(np.random.multinomial(1, policy))
         return action, policy
 
@@ -351,8 +352,9 @@ class PPOAgent(FNN):
         self.init_session()
 
     def init_session(self):
-        config_tf = tf.ConfigProto(device_count={'GPU': 0})
-        self.session = tf.Session(config=config_tf)
+#        config_tf = tf.ConfigProto(device_count={'GPU': 0})
+#        self.session = tf.Session(config=config_tf)
+        self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
 
         # set baseline session
@@ -486,8 +488,9 @@ class DQNAgent(FNN):
         self.init_session()
 
     def init_session(self):
-        config_tf = tf.ConfigProto(device_count={'GPU': 0})
-        self.session = tf.Session(config=config_tf)
+#        config_tf = tf.ConfigProto(device_count={'GPU': 0})
+#        self.session = tf.Session(config=config_tf)
+        self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
         # set trainable variables equal in both networks
         self.copy_trainable_variables(self.nn_name, self.target_dqn.nn_name)
@@ -514,16 +517,16 @@ class DQNAgent(FNN):
     def action(self, obs):
         """ return action and policy """
         # note we take actions according to the old policy
-        feed = {self.observations: obs.reshape(1,-1)}
+        feed = {self.observations: obs}
         # deterministic action
-        # logits = self.session.run(self.q, feed)[0]
-        # action = np.argmax(logits)
+        logits = self.session.run(self.q, feed)[0] + 1e-6
+        action = np.argmax(logits)
         # probabilistic action
         # add 1e-6 offset to prevent numeric underflow
-        policy = self.session.run(tf.nn.softmax(self.q), feed)[0] + 1e-6
-        policy /= np.sum(policy)
-        action = np.argmax(np.random.multinomial(1, policy))
-        return action, policy
+        #policy = self.session.run(tf.nn.softmax(self.q), feed)[0] + 1e-6
+        #policy /= np.sum(policy)
+        #action = np.argmax(np.random.multinomial(1, policy))
+        return action, None
 
     def update(self, obs, actions, next_obs, rewards, done):
         """ one gradient step update """
@@ -561,7 +564,7 @@ class StateValueFunction(FNN):
     """ State-Value Function trained via Monte-Carlo """
     def __init__(self, d_input, d_hidden_layers, d_output, learning_rate,
                  reward_discount_factor, gae_lamda,
-                 prev_layers=[], nn_type='dense', activation='tanh',
+                 prev_layers=[], nn_type='dense', activation='relu',
                  experiment_folder=os.getcwd(), name='state_value_function'):
         super().__init__(d_input, d_hidden_layers, d_output, learning_rate, prev_layers, nn_type,
                          activation, experiment_folder, name)
@@ -570,6 +573,8 @@ class StateValueFunction(FNN):
         self.nn_name = name
 
         self.outputs = self.layers_[-1]
+
+        print(self.outputs)
 
         # loss
         self.crewards = tf.placeholder(shape=(None, 1), dtype=tf.float32)
@@ -587,8 +592,9 @@ class StateValueFunction(FNN):
     def init_session(self, saver=None, session=None):
         if session == None:
             self.saver = tf.train.Saver()
-            config_tf = tf.ConfigProto(device_count={'GPU': 0})
-            self.session = tf.Session(config=config_tf)
+            #config_tf = tf.ConfigProto(device_count={'GPU': 1})
+            #self.session = tf.Session(config=config_tf)
+            self.session = tf.Session()
             self.session.run(tf.global_variables_initializer())
         else:
             self.session = session

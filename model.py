@@ -71,7 +71,8 @@ class Model(object):
         self.verbose = cfg.verbose
         self.global_step = cfg.global_step
         self.observation_encoding = cfg.observation_encoding
-        self.n_episodes = cfg.n_episodes
+        #self.n_episodes = cfg.n_episodes
+        self.n_steps = cfg.n_steps
 
         # non-hyperparameters
         self.episode_number, self.step_number = 0, 0
@@ -136,7 +137,7 @@ class Model(object):
             self.n_batches = cfg.n_episodes // cfg.batch_size
             self.batch_size = cfg.batch_size
             self.batch_number = 0
-            self.crewards = []
+            self.crewards, self.baseline_value, self.baseline_loss = [], [], []
             self.agent = VPGAgent(self.d_input_agent,
                                   cfg.agent_d_hidden_layers,
                                   self.n_actions,
@@ -213,16 +214,20 @@ class Model(object):
     def train_model(self):
         """ train the model for n epsiodes/batches """
         if 'vpg' in self.model_name:
-            for _ in range(self.n_batches):
+#            for _ in range(self.n_batches):
+             while self.step_number < self.n_steps:
                 self.train_one_batch_with_vpg()
         if 'dqn' in self.model_name:
-            for _ in range(self.n_episodes):
+#            for _ in range(self.n_episodes):
+            while self.step_number < self.n_steps:
                 self.train_one_episode_with_dqn()
         if 'rs' in self.model_name:
-            for _ in range(self.n_episodes):
+#            for _ in range(self.n_episodes):
+            while self.step_number < self.n_steps:
                 self.train_one_episode_with_rs()
         if 'ppo' in self.model_name:
-            for _ in range(self.n_batches):
+#            for _ in range(self.n_batches):
+            while self.step_number < self.n_steps:
                 self.train_one_batch_with_ppo()
         self.save_model()
         self.close()
@@ -302,7 +307,7 @@ class Model(object):
         if 'maze' in self.env_name:
             self.states_visited.update(self.env.visited)
 
-        if self.episode_number % self.log_step == 0:
+        if self.step_number % self.log_step == 0 and self.step_number <= self.n_steps:
             self.print_logs()
             self.write_summary()
 
@@ -341,12 +346,13 @@ class Model(object):
             # update agent
             self.dqn_update()
 
-            # decrease epsilon for exploration
-            self.epsilon *= self.epsilon_discount_factor
+            # decrease epsilon for exploration until 0.1
+            if self.epsilon > 0.1:
+                self.epsilon *= self.epsilon_discount_factor
 
             obs = next_obs
 
-            if self.step_number % self.log_step == 0:
+            if self.step_number % self.log_step == 0 and self.step_number <= self.n_steps:
                 self.print_logs()
                 self.write_summary()
 
@@ -395,7 +401,7 @@ class Model(object):
 
                 obs = next_obs
 
-                if self.step_number % self.log_step == 0:
+                if self.step_number % self.log_step == 0 and self.step_number <= self.n_steps:
                     self.print_logs()
                     self.write_summary()
 
@@ -452,7 +458,7 @@ class Model(object):
 
                 obs = next_obs
 
-                if self.step_number % self.log_step == 0:
+                if self.step_number % self.log_step == 0 and self.step_number <= self.n_steps:
                     self.print_logs()
                     self.write_summary()
 

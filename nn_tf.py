@@ -204,8 +204,6 @@ class VPGAgent(FNN):
         self.init_session()
 
     def init_session(self):
-#        config_tf = tf.ConfigProto(device_count={'GPU': 0})
-#        self.session = tf.Session(config=config_tf)
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
 
@@ -352,8 +350,6 @@ class PPOAgent(FNN):
         self.init_session()
 
     def init_session(self):
-#        config_tf = tf.ConfigProto(device_count={'GPU': 0})
-#        self.session = tf.Session(config=config_tf)
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
 
@@ -453,6 +449,11 @@ class DQNAgent(FNN):
     """ Agent trained via deep q-learning
         Playing Atari with Deep Reinforcement Learning, Mnih et al.
         arXiv:1312.5602v1  [cs.LG]  19 Dec 2013
+        http://web.stanford.edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf
+
+        y_i = r_i + 𝛾 * max(Q(next_state, action; 𝜃_target))
+        Loss: (y_i - Q(state, action; 𝜃))^2
+        Every C step, 𝜃_target <- 𝜃
     """
     def __init__(self, d_input, d_hidden_layers, d_output, learning_rate, gamma,
                  nn_type, activation, experiment_folder=os.getcwd(), name='dqn'):
@@ -465,9 +466,6 @@ class DQNAgent(FNN):
         # traget q-value network
         self.target_dqn = FNN(d_input, d_hidden_layers, d_output, learning_rate,
                               [], nn_type, activation, experiment_folder, 'target_dqn')
-
-        # target q-value
-        self.q_target = self.target_dqn.layers_[-1]
 
         # current q-value
         self.q = self.layers_[-1]
@@ -488,8 +486,6 @@ class DQNAgent(FNN):
         self.init_session()
 
     def init_session(self):
-#        config_tf = tf.ConfigProto(device_count={'GPU': 0})
-#        self.session = tf.Session(config=config_tf)
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
         # set trainable variables equal in both networks
@@ -536,22 +532,19 @@ class DQNAgent(FNN):
         # stack observations and squeeze
         obs = np.squeeze(np.vstack(obs).astype(np.float32))
         next_obs = np.squeeze(np.vstack(next_obs).astype(np.float32))
+        done = np.array(done).astype(np.float32)
+        actions = np.array(actions)
+        rewards = np.array(rewards).astype(np.float32)
 
-        # target q-value of next observation s_(t+1)
-        feed = {self.target_dqn.observations: next_obs}
-        q_target_next_state = self.session.run(self.target_dqn.outputs, feed)
-
-        # maximal target q-value of next observation s_(t+1) for 'best' action
-        q_target_next_state_max = np.max(q_target_next_state, axis=1)
-
-        # q-value of current observation s_t
-        feed = {self.observations: obs}
-        q = self.session.run(self.q, feed)
-
-        # for given pair (s_t, a_t) construct target
-        q_target = q
-        for x, y in enumerate(actions):
-            q_target[x, y] = rewards[x] + self.gamma * (1. - done[x]) * q_target_next_state_max[x]
+        # 1)  compute target q-value of next observation s_(t+1)
+        # 2)  for current observations construct target q values
+        # 2a) copy q-values for current observations
+        # 2b) use the maximal target q-value of
+        #     next observation s_(t+1) as 'best' action
+        # 2c) update the q-values for the taken actions
+        feed = {self.observations: obs, self.target_dqn.observations: next_obs}
+        q_target, q_target_next_state = self.session.run([self.q, self.target_dqn.outputs], feed)
+        q_target[np.arange(len(actions)), actions] = rewards + self.gamma * (1. - done) * np.max(q_target_next_state, axis=1)
 
         # train current policy network
         feed = {self.observations: obs, self.q_target: q_target}

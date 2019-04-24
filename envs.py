@@ -48,7 +48,7 @@ class AtariGame(object):
 
         # number of frames per step
         if 'Pong' in self.env_name:
-            self.n_frames = 2
+            self.n_frames = 4
         elif 'Breakout' in self.env_name:
             self.n_frames = 4
 
@@ -62,7 +62,7 @@ class AtariGame(object):
         obs, reward, done, info = self.env.step(1)
         obs = self.encode_obs(obs)  # (84, 84, 1)
 
-        self.lives = self.env.unwrapped.ale.lives() # 5
+        self.lives = self.env.unwrapped.ale.lives()
         self.rewards = []
         self.dones = []
 
@@ -94,8 +94,8 @@ class AtariGame(object):
         return done
 
     def reward_shaping(self, reward):
-        if 'Pong' in self.env_name:
-            return (reward + 1.0/self.n_frames)
+        #if 'Pong' in self.env_name:
+        #    return (reward + 1.0/self.n_frames)
         return reward
 
     def step(self, action):
@@ -138,7 +138,7 @@ class AtariGame(object):
                 break
 
         # Take the maximum of each pixel of the last two frames, which is
-        # important for the Breakout game, since one frame alone
+        # important for the Atari game, since one frame alone
         # does not contain the full information of the observation.
         obs = np.max(np.array([prev_obs, obs]), axis=0)
 

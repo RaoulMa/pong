@@ -77,7 +77,7 @@ class Model(object):
         # non-hyperparameters
         self.episode_number, self.step_number = 0, 0
         self.agent_loss = []
-        self.returns_test, self.returns = [], []
+        self.returns_test, self.returns, self.episode_lengths = [], [], []
         self.agent_buffer = collections.deque(maxlen=cfg.agent_buffer_size)
         self.baseline = None
 
@@ -134,7 +134,6 @@ class Model(object):
 
         # policy-gradient dependent hyperparameters
         if 'vpg' in self.model_name:
-            self.n_batches = cfg.n_episodes // cfg.batch_size
             self.batch_size = cfg.batch_size
             self.batch_number = 0
             self.crewards, self.baseline_value, self.baseline_loss = [], [], []
@@ -152,7 +151,6 @@ class Model(object):
 
         # ppo dependent hyperparameters
         elif 'ppo' in self.model_name:
-            self.n_batches = cfg.n_episodes // cfg.batch_size
             self.batch_size = cfg.batch_size
             self.batch_number = 0
             self.crewards, self.entropy_loss, self.baseline_value, self.baseline_loss = [], [], [], []
@@ -173,8 +171,7 @@ class Model(object):
 
         # dqn dependent hyperparameters
         elif 'dqn' in self.model_name:
-            self.epsilon = cfg.epsilon
-            self.epsilon_discount_factor = cfg.epsilon_discount_factor
+            self.epsilon = cfg.epsilon_start
             self.update_target_network_freq = cfg.update_target_network_freq
             self.agent = DQNAgent(self.d_input_agent,
                                 cfg.agent_d_hidden_layers,
@@ -214,19 +211,15 @@ class Model(object):
     def train_model(self):
         """ train the model for n epsiodes/batches """
         if 'vpg' in self.model_name:
-#            for _ in range(self.n_batches):
              while self.step_number < self.n_steps:
                 self.train_one_batch_with_vpg()
         if 'dqn' in self.model_name:
-#            for _ in range(self.n_episodes):
             while self.step_number < self.n_steps:
                 self.train_one_episode_with_dqn()
         if 'rs' in self.model_name:
-#            for _ in range(self.n_episodes):
             while self.step_number < self.n_steps:
                 self.train_one_episode_with_rs()
         if 'ppo' in self.model_name:
-#            for _ in range(self.n_batches):
             while self.step_number < self.n_steps:
                 self.train_one_batch_with_ppo()
         self.save_model()
@@ -255,8 +248,20 @@ class Model(object):
         return action
 
     def add_to_buffer(self, obs, action, next_obs, reward, done):
+        """ fill replay buffer
+
+        One observation has 84*84*4 pixels of float32 equals 84*84*4*4 Bytes
+        which is 0.11MB. We store 2 observations each time i.e. 0.22MB.
+
+        Replay Buffer of size 10000 requires 2.26GB.
+
+        """
         if self.agent is not None:
-            self.agent_buffer.append([obs, action, next_obs, reward, done])
+                self.agent_buffer.append([obs, action, next_obs, reward, done])
+#                print(len(self.agent_buffer),
+#                      sys.getsizeof(self.agent_buffer)/1000000.,
+#                      sys.getsizeof(obs)/1000000. + sys.getsizeof(next_obs)/1000000.)
+#                time.sleep(0.001)
 
     def dqn_update(self):
         """ one deep q-learning update step """
@@ -297,7 +302,9 @@ class Model(object):
         self.returns.append(0.)
         obs, done = self.env.reset(), False
 
+        episode_length = 0
         while not done:
+            episode_length += 1
             self.step_number += 1
             action = self.action(obs)
             next_obs, reward, done, _ = self.env.step(action)
@@ -311,6 +318,8 @@ class Model(object):
             self.print_logs()
             self.write_summary()
 
+        self.episode_lengths.append(episode_length)
+
     def train_one_episode_with_dqn(self):
         """ deep q-learning training """
         self.episode_number += 1
@@ -321,15 +330,21 @@ class Model(object):
         obs = self.encode_obs(obs)
         self.returns.append(0.)
 
+        episode_length = 0
         while not done:
+            episode_length += 1
             self.step_number += 1
 
             # update q-value target network
             if self.step_number % self.update_target_network_freq == 0:
                 self.agent.update_target_network()
 
-            # epsilon-greedy action
-            action = self.action(obs, self.epsilon)
+            if self.step_number > self.cfg.agent_buffer_start_size:
+                # epsilon-greedy action
+                action = self.action(obs, self.epsilon)
+            else:
+                # random action to fill the replay buffer
+                action = self.action(obs, 1.)
 
             # make one step in the environment
             next_obs, reward, done, _ = self.env.step(action)
@@ -343,12 +358,18 @@ class Model(object):
             # add transition to buffer
             self.add_to_buffer(obs, action, next_obs, reward, done)
 
-            # update agent
-            self.dqn_update()
+            if self.verbose:
+                self.env.render()
+                print(self.episode_number, self.step_number, action, reward, done, self.env.env.unwrapped.ale.lives())
+                time.sleep(.01)
 
-            # decrease epsilon for exploration until 0.1
-            if self.epsilon > 0.1:
-                self.epsilon *= self.epsilon_discount_factor
+            if self.step_number > self.cfg.agent_buffer_start_size:
+                # update agent
+                self.dqn_update()
+
+                # decrease epsilon for exploration
+                if self.epsilon > self.cfg.epsilon_final:
+                    self.epsilon -= (self.cfg.epsilon_start - self.cfg.epsilon_final)/self.cfg.epsilon_step_range
 
             obs = next_obs
 
@@ -358,6 +379,8 @@ class Model(object):
 
         if 'maze' in self.env_name:
             self.states_visited.update(self.env.visited)
+
+        self.episode_lengths.append(episode_length)
 
     def train_one_batch_with_vpg(self):
         """ vanilla policy gradient training """
@@ -407,6 +430,8 @@ class Model(object):
 
             if 'maze' in self.env_name:
                 self.states_visited.update(self.env.visited)
+
+            self.episode_lengths.append(len(obs_batch[-1]))
 
         # update agent
         self.vpg_update(obs_batch, action_batch, reward_batch, done_batch)
@@ -465,6 +490,7 @@ class Model(object):
             if 'maze' in self.env_name:
                 self.states_visited.update(self.env.visited)
 
+            self.episode_lengths.append(len(obs_batch[-1]))
 
         # update agent
         self.ppo_update(obs_batch, action_batch, reward_batch, done_batch)
@@ -499,12 +525,12 @@ class Model(object):
         #self.returns_test.append(stats[0])
 
         m = 20
-        print_str = 'ep {} st {} {} e.ret.tr {:.2f} '.format(
+        print_str = 'ep {} st {} {} e.ret.tr {:.2f} ep.ln {:.0f} '.format(
             self.episode_number,
             self.step_number,
             self.model_name,
-            np.mean(self.returns[-m:])
-            #np.mean(self.returns_test[-1])
+            np.mean(self.returns[-m:]),
+            np.mean(self.episode_lengths[-m:])
         )
 
         if self.agent is not None:
@@ -541,10 +567,14 @@ class Model(object):
     def write_summary(self):
         """ write tensorflow summaries """
         m = 20
-        summary = {'data/ext_return': np.mean(self.returns[-m:])} if len(self.returns)>0 else 0.
+        summary = {'data/ext_return': np.mean(self.returns[-m:]) if len(self.returns)>0 else 0.,
+                   'data/episode_length': np.mean(self.episode_lengths[-m:]) if len(self.episode_lengths)>0 else 0.}
 
         if self.agent is not None:
             summary['data/agent_loss'] = np.mean(self.agent_loss[-m:]) if len(self.agent_loss)>0 else 0.
+
+        if 'dqn' in self.model_name:
+            summary['data/epsilon'] = self.epsilon
 
         if 'vpg' in self.model_name or 'ppo' in self.model_name:
             summary['data/crewards'] = np.mean(self.crewards[-m:]) if len(self.crewards)>0 else 0.
@@ -566,11 +596,11 @@ class Model(object):
         for key in summary.keys():
             if USE_TF:
                 summary_value = tf.Summary.Value(tag=key, simple_value=summary[key])
-                self.writer.add_summary(tf.Summary(value=[summary_value]), global_step=self.global_step)
+                self.writer.add_summary(tf.Summary(value=[summary_value]), global_step=self.step_number)
 
             elif USE_TFE:
                 with self.summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
-                    tf.contrib.summary.scalar(key, summary[key], step=self.global_step)
+                    tf.contrib.summary.scalar(key, summary[key], step=self.step_number)
         if USE_TF:
             self.writer.flush()
 

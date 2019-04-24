@@ -6,18 +6,18 @@ def get_cfg(experiment_folder, env_name, agent_name):
     """
     Pong-v0
     """
-    if env_name == 'Pong-v0':
+    if env_name == 'PongNoFrameskip-v4':
         cfg_env = dotdict({
             'experiment_folder': experiment_folder,
             'verbose': False,
-            'env_name': 'Pong-v0',
+            'env_name': 'PongNoFrameskip-v4',
             'seed': 1,
             'global_step': 0,
             'reward_discount_factor': 0.99,
             'time_reward': 0.0,
-            'n_episodes': 10000,
-            'log_step': 100,
-            'agent_buffer_size': 1000000,
+            'n_steps': 1000000,
+            'log_step': 1000,
+            'agent_buffer_size': 100000,
             'agent_buffer_batch_size': 32,
             'observation_encoding': 'None',
             'activation': 'relu',
@@ -28,10 +28,10 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'model_name': 'ppo',
                 'batch_size': 4,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.0005,
+                'agent_learning_rate': 0.00025,
                 'clip_range': 0.1,
                 'baseline_d_hidden_layers': [],
-                'baseline_learning_rate': 0.0005,
+                'baseline_learning_rate': 0.00025,
                 'baseline': 'shared_advantage',
             })
         if agent_name == 'vpg':
@@ -39,20 +39,22 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'model_name': 'vpg',
                 'batch_size': 4,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.0005,
+                'agent_learning_rate': 0.00025,
                 'baseline_d_hidden_layers': [32],
-                'baseline_learning_rate': 0.0005,
+                'baseline_learning_rate': 0.00025,
                 'baseline': 'shared_advantage',
             })
         if agent_name == 'dqn':
             cfg_agent = dotdict({
                 'model_name': 'dqn',
-                'update_target_network_freq': 100,
+                'update_target_network_freq': 1000,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.0005,
+                'agent_learning_rate': 0.00025,
                 'baseline': 'None',
-                'epsilon': 1.,
-                'epsilon_discount_factor': 0.9999,
+                'epsilon_start': 1.0,
+                'epsilon_step_range': 10000,
+                'epsilon_final': 0.1,
+                'agent_buffer_start_size': 10000
             })
 
     """ 
@@ -67,8 +69,8 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'global_step': 0,
             'reward_discount_factor': 0.99,
             'time_reward': 0.0,
-            'n_episodes': 10000,
-            'log_step': 100,
+            'n_steps': 1000000,
+            'log_step': 1000,
             'agent_buffer_size': 1000000,
             'agent_buffer_batch_size': 32,
             'observation_encoding': 'None',
@@ -80,7 +82,7 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'model_name': 'ppo',
                 'batch_size': 4,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.0005,
+                'agent_learning_rate': 0.00025,
                 'clip_range': 0.1,
                 'baseline_d_hidden_layers': [],
                 'baseline_learning_rate': 0.001,
@@ -91,20 +93,21 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'model_name': 'vpg',
                 'batch_size': 4,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.0005,
+                'agent_learning_rate': 0.00025,
                 'baseline_d_hidden_layers': [32],
-                'baseline_learning_rate': 0.0005,
+                'baseline_learning_rate': 0.00025,
                 'baseline': 'advantage',
             })
         if agent_name == 'dqn':
             cfg_agent = dotdict({
                 'model_name': 'dqn',
-                'update_target_network_freq': 100,
+                'update_target_network_freq': 1000,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.0005,
+                'agent_learning_rate': 0.00025,
                 'epsilon': 1.,
                 'epsilon_discount_factor': 0.9999,
-                'baseline': 'None'
+                'baseline': 'None',
+                'agent_buffer_start_size': 50000
             })
 
     """ 
@@ -121,8 +124,8 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'global_step': 0,
             'reward_discount_factor': 0.99,
             'time_reward': 0.0,
-            'n_episodes': 10000,
-            'log_step': 100,
+            'n_steps': 50000,
+            'log_step': 1000,
             'agent_buffer_size': 100000,
             'agent_buffer_batch_size': 32,
             'observation_encoding': 'normalise',
@@ -153,12 +156,13 @@ def get_cfg(experiment_folder, env_name, agent_name):
         if agent_name == 'dqn':
             cfg_agent = dotdict({
                 'model_name': 'dqn',
-                'update_target_network_freq': 100,
+                'update_target_network_freq': 1000,
                 'agent_d_hidden_layers': [32],
                 'agent_learning_rate': 0.001,
                 'epsilon': 1.,
                 'epsilon_discount_factor': 0.9999,
-                'baseline': 'None'
+                'baseline': 'None',
+                'agent_buffer_start_size': 1000
             })
 
 
@@ -171,8 +175,8 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'verbose': False,
             'env_name': 'CartPole-v0',
             'seed': 1,
-            'n_episodes': 1000,
-            'log_step': 100,
+            'n_steps': 50000,
+            'log_step': 1000,
             'global_step': 0,
             'reward_discount_factor': 0.99,
             'agent_buffer_size': 1000000,
@@ -208,10 +212,11 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'model_name': 'dqn',
                 'epsilon': 1.,
                 'epsilon_discount_factor': 0.99,
-                'update_target_network_freq': 100,
+                'update_target_network_freq': 1000,
                 'agent_d_hidden_layers': [32],
                 'agent_learning_rate': 0.001,
-                'baseline': 'None'
+                'baseline': 'None',
+                'agent_buffer_start_size': 1000
             })
 
     """

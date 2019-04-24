@@ -61,6 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', default=1, type=int, help='number of CPUs that should be used')
     parser.add_argument('--gpu', default=1, type=int, help='number of GPUs that should be used')
     args = parser.parse_args()
+    print('ags ', args)
 
     # create experiment folder
     experiments_folder = os.path.join(os.getcwd(), 'results')
@@ -70,12 +71,12 @@ if __name__ == '__main__':
     env_name = 'BreakoutNoFrameskip-v4'
     env_name = 'four_rooms_maze'
     env_name = 'CartPole-v0'
-    env_name = 'Pong-v0'
+    env_name = 'PongNoFrameskip-v4'
 
     # specify agent
-    agent_names  = [#'dqn',
+    agent_names  = ['dqn',
                     #'vpg',
-                    'ppo',
+                    #'ppo',
                     ]
 
     cfgs, cfg_spec = [], {}
@@ -88,8 +89,11 @@ if __name__ == '__main__':
 
         # make hyperparameter changes from default ones
         cfg['n_steps'] = 1000000      # total number of training steps
-        cfg['batch_size'] = 4         # batch size in terms of episodes
+        cfg['batch_size'] = 1         # batch size in terms of episodes
         cfg['log_step'] = 1000        # in terms of step numbers
+        cfg['agent_buffer_size'] = 100000
+        cfg['agent_buffer_start_size'] = 10000
+        cfg['update_target_network_freq'] = 1000
 
         # choose several seeds
         for i in range(1):
@@ -127,7 +131,8 @@ if __name__ == '__main__':
         tf_events_to_csv(dpath)
 
     # create plot
-    plot_hp_sensitivities(experiment_folder, 'ext_return', 'model_name', {}, True, 1, False)
+    plot_hp_sensitivities(experiment_folder, 'ext_return', 'model_name', {}, False, 3, False)
+    plot_hp_sensitivities(experiment_folder, 'episode_length', 'model_name', {}, False, 3, False)
 
 
 

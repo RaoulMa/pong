@@ -212,7 +212,7 @@ def plot_hp_sensitivities(experiment_folder, variable_name, hp_name, hp_fixed={}
 
     # construct dataframe
     df = pd.DataFrame()
-    df['episodes'] = x_values
+    df['number_of_steps'] = x_values
     df[variable_name] = y_values
     df[hp_name] = hp_values
 
@@ -223,7 +223,7 @@ def plot_hp_sensitivities(experiment_folder, variable_name, hp_name, hp_fixed={}
     footnote = None
     if details:
         footnote = 'varied hyperparameters\n' + str(cfg_varied) + '\n\nfixed hyperparameters\n' + str(cfg_fixed).replace('],','],\n')
-    plot_df(df, 'episodes', variable_name, hp_name, title, fpath, footnote, show)
+    plot_df(df, 'number_of_steps', variable_name, hp_name, title, fpath, footnote, show)
 
 def read_tf_events(dpath, event_name=None):
     """ read tf events """

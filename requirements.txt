@@ -1,3 +1,4 @@
+psutil
 gym[atari]
 matplotlib
 ray==0.6.3

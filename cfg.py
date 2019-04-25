@@ -14,12 +14,8 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'seed': 1,
             'global_step': 0,
             'reward_discount_factor': 0.99,
-            'time_reward': 0.0,
             'n_steps': 1000000,
             'log_step': 1000,
-            'agent_buffer_size': 100000,
-            'agent_buffer_batch_size': 32,
-            'observation_encoding': 'None',
             'activation': 'relu',
             'gae_lamda': 0.97,
         })
@@ -47,14 +43,16 @@ def get_cfg(experiment_folder, env_name, agent_name):
         if agent_name == 'dqn':
             cfg_agent = dotdict({
                 'model_name': 'dqn',
+                'update_freq': 1,
                 'update_target_network_freq': 1000,
                 'agent_d_hidden_layers': [32],
                 'agent_learning_rate': 0.00025,
-                'baseline': 'None',
                 'epsilon_start': 1.0,
-                'epsilon_step_range': 10000,
-                'epsilon_final': 0.1,
-                'agent_buffer_start_size': 10000
+                'epsilon_step_range': 100000,
+                'epsilon_final': 0.02,
+                'agent_buffer_start_size': 10000,
+                'agent_buffer_size': 100000,
+                'agent_buffer_batch_size': 32,
             })
 
     """ 
@@ -68,12 +66,8 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'seed': 1,
             'global_step': 0,
             'reward_discount_factor': 0.99,
-            'time_reward': 0.0,
             'n_steps': 1000000,
             'log_step': 1000,
-            'agent_buffer_size': 1000000,
-            'agent_buffer_batch_size': 32,
-            'observation_encoding': 'None',
             'activation': 'relu',
             'gae_lamda': 0.97,
         })
@@ -101,70 +95,17 @@ def get_cfg(experiment_folder, env_name, agent_name):
         if agent_name == 'dqn':
             cfg_agent = dotdict({
                 'model_name': 'dqn',
+                'update_freq': 4,
                 'update_target_network_freq': 1000,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.00025,
-                'epsilon': 1.,
-                'epsilon_discount_factor': 0.9999,
-                'baseline': 'None',
-                'agent_buffer_start_size': 50000
+                'agent_learning_rate': 0.0001,
+                'epsilon_start': 1.0,
+                'epsilon_step_range': 100000,
+                'epsilon_final': 0.02,
+                'agent_buffer_start_size': 10000,
+                'agent_buffer_size': 100000,
+                'agent_buffer_batch_size': 128,
             })
-
-    """ 
-    Four-Rooms Maze
-    """
-    if env_name == 'four_rooms_maze':
-        cfg_env = dotdict({
-            'experiment_folder': experiment_folder,
-            'verbose': False,
-            'env_name': 'four_rooms_maze',
-            'env_max_steps': 21,
-            'env_reward': 10.,
-            'seed': 1,
-            'global_step': 0,
-            'reward_discount_factor': 0.99,
-            'time_reward': 0.0,
-            'n_steps': 50000,
-            'log_step': 1000,
-            'agent_buffer_size': 100000,
-            'agent_buffer_batch_size': 32,
-            'observation_encoding': 'normalise',
-            'activation': 'relu',
-            'gae_lamda': 0.97,
-        })
-        if agent_name == 'ppo':
-            cfg_agent = dotdict({
-                'model_name': 'ppo',
-                'batch_size': 4,
-                'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.001,
-                'clip_range': 0.1,
-                'baseline_d_hidden_layers': [32],
-                'baseline_learning_rate': 0.001,
-                'baseline': 'advantage',
-            })
-        if agent_name == 'vpg':
-            cfg_agent = dotdict({
-                'model_name': 'vpg',
-                'batch_size': 4,
-                'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.001,
-                'baseline_d_hidden_layers': [32],
-                'baseline_learning_rate': 0.001,
-                'baseline': 'advantage',
-            })
-        if agent_name == 'dqn':
-            cfg_agent = dotdict({
-                'model_name': 'dqn',
-                'update_target_network_freq': 1000,
-                'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.001,
-                'epsilon': 1.,
-                'epsilon_discount_factor': 0.9999,
-                'baseline': 'None',
-                'agent_buffer_start_size': 1000
-            })
-
 
     """ 
     CartPole-v0 
@@ -183,8 +124,6 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'agent_buffer_batch_size': 32,
             'activation': 'relu',
             'gae_lamda': 0.97,
-            'time_reward': 0,
-            'observation_encoding': 'None',
         })
         if agent_name == 'ppo':
             cfg_agent = dotdict({
@@ -210,17 +149,20 @@ def get_cfg(experiment_folder, env_name, agent_name):
         if agent_name == 'dqn':
             cfg_agent = dotdict({
                 'model_name': 'dqn',
-                'epsilon': 1.,
-                'epsilon_discount_factor': 0.99,
-                'update_target_network_freq': 1000,
+                'update_freq': 1,
+                'update_target_network_freq': 100,
                 'agent_d_hidden_layers': [32],
                 'agent_learning_rate': 0.001,
-                'baseline': 'None',
-                'agent_buffer_start_size': 1000
+                'epsilon_start': 1.0,
+                'epsilon_step_range': 2000,
+                'epsilon_final': 0.02,
+                'agent_buffer_start_size': 1000,
+                'agent_buffer_size': 10000,
+                'agent_buffer_batch_size': 32,
             })
 
     """
-    random search
+    random search agent
     """
     if agent_name == 'rs':
         cfg_agent = dotdict({

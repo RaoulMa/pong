@@ -514,14 +514,11 @@ class DQNAgent(FNN):
         """ return action and policy """
         # note we take actions according to the old policy
         feed = {self.observations: obs}
+
         # deterministic action
-        logits = self.session.run(self.q, feed)[0] + 1e-6
-        action = np.argmax(logits)
-        # probabilistic action
-        # add 1e-6 offset to prevent numeric underflow
-        #policy = self.session.run(tf.nn.softmax(self.q), feed)[0] + 1e-6
-        #policy /= np.sum(policy)
-        #action = np.argmax(np.random.multinomial(1, policy))
+        q_value = self.session.run(self.q, feed)[0] + 1e-6
+        action = np.argmax(q_value)
+
         return action, None
 
     def update(self, obs, actions, next_obs, rewards, done):
@@ -567,8 +564,6 @@ class StateValueFunction(FNN):
 
         self.outputs = self.layers_[-1]
 
-        print(self.outputs)
-
         # loss
         self.crewards = tf.placeholder(shape=(None, 1), dtype=tf.float32)
         self.loss = tf.losses.mean_squared_error(labels=self.crewards, predictions=self.outputs)
@@ -585,8 +580,6 @@ class StateValueFunction(FNN):
     def init_session(self, saver=None, session=None):
         if session == None:
             self.saver = tf.train.Saver()
-            #config_tf = tf.ConfigProto(device_count={'GPU': 1})
-            #self.session = tf.Session(config=config_tf)
             self.session = tf.Session()
             self.session.run(tf.global_variables_initializer())
         else:

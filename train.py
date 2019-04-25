@@ -69,7 +69,6 @@ if __name__ == '__main__':
 
     # specify environment
     env_name = 'BreakoutNoFrameskip-v4'
-    env_name = 'four_rooms_maze'
     env_name = 'CartPole-v0'
     env_name = 'PongNoFrameskip-v4'
 
@@ -88,7 +87,7 @@ if __name__ == '__main__':
         cfg.update(cfg_agent)
 
         # make hyperparameter changes from default ones
-        cfg['n_steps'] = 1000000      # total number of training steps
+        cfg['n_steps'] = 500000      # total number of training steps
         cfg['batch_size'] = 1         # batch size in terms of episodes
         cfg['log_step'] = 1000        # in terms of step numbers
         cfg['agent_buffer_size'] = 100000

@@ -6,10 +6,10 @@ import gym
 import random
 import pandas as pd
 import time
+import datetime
 import sys
 
 from envs import AtariGame
-from envs import make_env
 from utils import dotdict
 from utils import one_hot
 from utils import json_to_data
@@ -38,8 +38,7 @@ class Model(object):
     """ Interactions of RL agents in various environments
 
     This class implements the interactions of the PPO, VPG, DQN with
-    the environments Atari Breakout, OpenAI CartPole
-    and customizable 2D mazes.
+    the environments Atari Pong, Breakout and OpenAI CartPole.
 
     The code is largely agnostic to the used deep learning framework
     tensorflow, tensorflow in eager mode and pytorch
@@ -70,16 +69,15 @@ class Model(object):
         self.log_step = cfg.log_step
         self.verbose = cfg.verbose
         self.global_step = cfg.global_step
-        self.observation_encoding = cfg.observation_encoding
-        #self.n_episodes = cfg.n_episodes
         self.n_steps = cfg.n_steps
 
         # non-hyperparameters
         self.episode_number, self.step_number = 0, 0
         self.agent_loss = []
         self.returns_test, self.returns, self.episode_lengths = [], [], []
-        self.agent_buffer = collections.deque(maxlen=cfg.agent_buffer_size)
         self.baseline = None
+        self.t_start = -1
+        self.speed = []
 
         # set seeds
         tf.set_random_seed(cfg.seed)
@@ -89,26 +87,9 @@ class Model(object):
         # breakout dependent hyperparameters
         if 'Breakout' in self.env_name or 'Pong' in self.env_name:
             self.env = AtariGame(self.env_name, cfg.seed)
-            # we fix the number of allowed actions to 4
-            self.n_actions = 4 # self.env.n_actions
-            self.d_observation = self.env.d_observation
-            self.nn_type = 'convolution'
-
-        # maze dependent hyperparameters
-        elif 'maze' in self.env_name:
-            self.env = make_env(self.env_name, cfg.env_max_steps, cfg.env_reward)
             self.n_actions = self.env.n_actions
             self.d_observation = self.env.d_observation
-            self.n_observations = self.env.n_observations
-            self.layout_shape = self.env.layout.shape
-            # distinct states visited by the agent during training
-            self.states_visited = set()
-            self.nn_type = 'dense'
-
-            # normalise obervations
-            if self.observation_encoding == 'normalise':
-                self.obs_mean = [(self.layout_shape[0] - 1.)/2., (self.layout_shape[1] - 1.)/2.]
-                self.obs_std = self.obs_mean
+            self.nn_type = 'convolution'
 
         # cartpole dependent hyperparameters
         elif 'CartPole' in self.env_name:
@@ -120,17 +101,16 @@ class Model(object):
 
         # input dimension for the agent
         self.d_input_agent = self.d_observation
-        if self.observation_encoding == 'one_hot':
-            self.d_input_agent = self.n_observations
 
-        # baseline dependent hyperparameters
-        baseline_cfg = dotdict({'baseline': cfg.baseline})
-        if cfg.baseline != 'None':
-            self.baseline_value, self.baseline_loss = [], []
-            baseline_cfg = dotdict({'baseline': cfg.baseline,
-                                    'learning_rate': cfg.baseline_learning_rate,
-                                    'gae_lamda': cfg.gae_lamda,
-                                    'd_hidden_layers': cfg.baseline_d_hidden_layers})
+        if 'vpg' in self.model_name or 'ppo' in self.model_name:
+            # baseline dependent hyperparameters
+            baseline_cfg = dotdict({'baseline': cfg.baseline})
+            if cfg.baseline != 'None':
+                self.baseline_value, self.baseline_loss = [], []
+                baseline_cfg = dotdict({'baseline': cfg.baseline,
+                                        'learning_rate': cfg.baseline_learning_rate,
+                                        'gae_lamda': cfg.gae_lamda,
+                                        'd_hidden_layers': cfg.baseline_d_hidden_layers})
 
         # policy-gradient dependent hyperparameters
         if 'vpg' in self.model_name:
@@ -171,8 +151,8 @@ class Model(object):
 
         # dqn dependent hyperparameters
         elif 'dqn' in self.model_name:
+            self.agent_buffer = collections.deque(maxlen=cfg.agent_buffer_size) # replay buffer
             self.epsilon = cfg.epsilon_start
-            self.update_target_network_freq = cfg.update_target_network_freq
             self.agent = DQNAgent(self.d_input_agent,
                                 cfg.agent_d_hidden_layers,
                                 self.n_actions,
@@ -190,8 +170,6 @@ class Model(object):
         if not load:
             # short description
             description = self.env_name
-            if 'maze' in self.model_name:
-                description += '_maxsteps_' + str(cfg.env_max_steps) + '_reward_' + str(cfg.env_reward)
 
             if USE_TF:
                 # use an own suffix to distinguish from ray tf events
@@ -227,13 +205,6 @@ class Model(object):
 
     def encode_obs(self, obs):
         """ choose encoding of the observations """
-        if 'maze' in self.env_name:
-            if self.observation_encoding == 'one_hot':
-                n_classes = self.layout_shape[0] * self.layout_shape[1]
-                value = obs[0]*7 + obs[1]
-                obs = one_hot(value, n_classes)
-            elif self.observation_encoding == 'normalise':
-                obs = (obs - self.obs_mean) / self.obs_std
         obs = np.expand_dims(obs, axis=0)
         obs = obs.astype(np.float32)
         return obs
@@ -258,16 +229,11 @@ class Model(object):
         """
         if self.agent is not None:
                 self.agent_buffer.append([obs, action, next_obs, reward, done])
-#                print(len(self.agent_buffer),
-#                      sys.getsizeof(self.agent_buffer)/1000000.,
-#                      sys.getsizeof(obs)/1000000. + sys.getsizeof(next_obs)/1000000.)
-#                time.sleep(0.001)
 
     def dqn_update(self):
         """ one deep q-learning update step """
-        size = self.cfg.agent_buffer_batch_size // 2
-        history_batch = random.sample(list(self.agent_buffer), min(size, len(self.agent_buffer))) \
-                        + list(self.agent_buffer)[-size:]
+        size = self.cfg.agent_buffer_batch_size
+        history_batch = random.sample(list(self.agent_buffer), min(size, len(self.agent_buffer)))
         obs_batch, action_batch, next_obs_batch, reward_batch, done_batch = zip(*history_batch)
         loss, _ = self.agent.update(obs_batch, action_batch, next_obs_batch, reward_batch, done_batch)
         self.agent_loss.append(loss)
@@ -311,9 +277,6 @@ class Model(object):
             self.returns[-1] += reward
             obs = next_obs
 
-        if 'maze' in self.env_name:
-            self.states_visited.update(self.env.visited)
-
         if self.step_number % self.log_step == 0 and self.step_number <= self.n_steps:
             self.print_logs()
             self.write_summary()
@@ -324,19 +287,17 @@ class Model(object):
         """ deep q-learning training """
         self.episode_number += 1
         self.global_step += 1
-        reward_batch = []
 
         obs, done = self.env.reset(), False
         obs = self.encode_obs(obs)
-        self.returns.append(0.)
 
-        episode_length = 0
+        episode_length, sum_of_rewards = 0, 0
         while not done:
             episode_length += 1
             self.step_number += 1
 
             # update q-value target network
-            if self.step_number % self.update_target_network_freq == 0:
+            if self.step_number % self.cfg.update_target_network_freq == 0:
                 self.agent.update_target_network()
 
             if self.step_number > self.cfg.agent_buffer_start_size:
@@ -351,21 +312,19 @@ class Model(object):
             next_obs = self.encode_obs(next_obs)
 
             # extrinsic reward
-            reward += self.cfg.time_reward
-            reward_batch.append(reward)
-            self.returns[-1] += reward
+            sum_of_rewards += reward
 
             # add transition to buffer
             self.add_to_buffer(obs, action, next_obs, reward, done)
 
             if self.verbose:
-                self.env.render()
                 print(self.episode_number, self.step_number, action, reward, done, self.env.env.unwrapped.ale.lives())
-                time.sleep(.01)
+                self.env.render()
 
             if self.step_number > self.cfg.agent_buffer_start_size:
                 # update agent
-                self.dqn_update()
+                if self.step_number % self.cfg.update_freq == 0 :
+                    self.dqn_update()
 
                 # decrease epsilon for exploration
                 if self.epsilon > self.cfg.epsilon_final:
@@ -377,21 +336,17 @@ class Model(object):
                 self.print_logs()
                 self.write_summary()
 
-        if 'maze' in self.env_name:
-            self.states_visited.update(self.env.visited)
-
+        self.returns.append(sum_of_rewards)
         self.episode_lengths.append(episode_length)
 
     def train_one_batch_with_vpg(self):
         """ vanilla policy gradient training """
         self.batch_number += 1
-        obs_batch, action_batch, done_batch = [], [], []
-        reward_batch = []
+        obs_batch, action_batch, done_batch, reward_batch = [], [], [], []
 
         for _ in range(self.batch_size):
             self.episode_number += 1
             self.global_step += 1
-            self.returns.append(0.)
 
             obs_batch.append([])
             action_batch.append([])
@@ -413,14 +368,12 @@ class Model(object):
                 action_batch[-1].append(action_one_hot)
 
                 # make one step in the environment
-                next_obs, reward, done, _ = self.env.step(action)
+                next_obs, reward, done, info = self.env.step(action)
                 next_obs = self.encode_obs(next_obs)
                 done_batch[-1].append(done)
 
                 # extrinsic reward
-                reward += self.cfg.time_reward
                 reward_batch[-1].append(reward)
-                self.returns[-1] += reward
 
                 obs = next_obs
 
@@ -428,9 +381,7 @@ class Model(object):
                     self.print_logs()
                     self.write_summary()
 
-            if 'maze' in self.env_name:
-                self.states_visited.update(self.env.visited)
-
+            self.returns.append(sum(reward_batch[-1]))
             self.episode_lengths.append(len(obs_batch[-1]))
 
         # update agent
@@ -439,13 +390,11 @@ class Model(object):
     def train_one_batch_with_ppo(self):
         """ proximal policy optimisation training """
         self.batch_number += 1
-        obs_batch, action_batch, done_batch = [], [], []
-        reward_batch = []
+        obs_batch, action_batch, done_batch, reward_batch = [], [], [], []
 
         for _ in range(self.batch_size):
             self.episode_number += 1
             self.global_step += 1
-            self.returns.append(0.)
 
             obs_batch.append([])
             action_batch.append([])
@@ -474,12 +423,10 @@ class Model(object):
                 if self.verbose:
                     self.env.render()
                     print(self.episode_number, self.step_number, action, reward, done)
-                    time.sleep(.5)
+                    #time.sleep(0.01)
 
                 # extrinsic reward
-                reward += self.cfg.time_reward
                 reward_batch[-1].append(reward)
-                self.returns[-1] += reward
 
                 obs = next_obs
 
@@ -487,9 +434,7 @@ class Model(object):
                     self.print_logs()
                     self.write_summary()
 
-            if 'maze' in self.env_name:
-                self.states_visited.update(self.env.visited)
-
+            self.returns.append(sum(reward_batch[-1]))
             self.episode_lengths.append(len(obs_batch[-1]))
 
         # update agent
@@ -521,16 +466,20 @@ class Model(object):
 
     def print_logs(self):
         """ print log information """
-        #stats = self.simulate()
-        #self.returns_test.append(stats[0])
 
-        m = 20
-        print_str = 'ep {} st {} {} e.ret.tr {:.2f} ep.ln {:.0f} '.format(
+        # compute speed
+        if self.t_start>0:
+            self.speed.append(self.log_step / (time.time() - self.t_start))
+        self.t_start = time.time()
+
+        m = 5
+        print_str = 'ep {} st {} {} e.ret.tr {:.2f} ep.ln {:.0f} sp {:.1f} '.format(
             self.episode_number,
             self.step_number,
             self.model_name,
-            np.mean(self.returns[-m:]),
-            np.mean(self.episode_lengths[-m:])
+            np.mean(self.returns[-m:] if len(self.returns)>0 else 0.),
+            np.mean(self.episode_lengths[-m:] if len(self.episode_lengths)>0 else 0.),
+            self.speed[-1] if len(self.speed)>0 else 0.
         )
 
         if self.agent is not None:
@@ -539,36 +488,15 @@ class Model(object):
             print_str += 'bs.ls {:.2f} '.format(np.mean(self.baseline_loss[-m:]) if len(self.baseline_loss)>0 else 0.)
         if 'dqn' in self.model_name:
             print_str += 'eps {:.2f} '.format(self.epsilon)
-        if 'maze' in self.env_name:
-            print_str += 'vis {:.2f} '.format(len(self.states_visited))
 
         print(print_str)
 
-    def save_logs(self):
-        """ write log files """
-        fpath = os.path.join(self.cfg.experiment_folder, 'ext_returns_test')
-        np.save(fpath, np.array(self.returns_test))
-
-        fpath = os.path.join(self.cfg.experiment_folder, 'ext_returns')
-        np.save(fpath, np.array(self.returns))
-
-        if True:
-            # optional plots
-            y_values = np.array(self.returns_test)
-            x_values = np.arange(0, y_values.shape[0] * self.log_step, self.log_step)
-
-            df = pd.DataFrame()
-            df['episode'] = x_values
-            df['ext_returns_test'] = y_values
-
-            fpath = os.path.join(self.cfg.experiment_folder, 'ext_returns_test.png')
-            plot_df(df, 'episode', 'ext_returns_test', None, '', fpath)
-
     def write_summary(self):
         """ write tensorflow summaries """
-        m = 20
+        m = 5
         summary = {'data/ext_return': np.mean(self.returns[-m:]) if len(self.returns)>0 else 0.,
-                   'data/episode_length': np.mean(self.episode_lengths[-m:]) if len(self.episode_lengths)>0 else 0.}
+                   'data/episode_length': np.mean(self.episode_lengths[-m:]) if len(self.episode_lengths)>0 else 0.,
+                   'data/speed': self.speed[-1] if len(self.speed)>0 else 0.}
 
         if self.agent is not None:
             summary['data/agent_loss'] = np.mean(self.agent_loss[-m:]) if len(self.agent_loss)>0 else 0.
@@ -589,9 +517,6 @@ class Model(object):
         if self.baseline is not None:
             summary['data/baseline_loss'] = np.mean(self.baseline_loss[-m:]) if len(self.baseline_loss)>0 else 0.
             summary['data/baseline_value'] = np.mean(self.baseline_value[-m:]) if len(self.baseline_value)>0 else 0.
-
-        if 'maze' in self.env_name:
-            summary['data/n_states_visited'] = len(self.states_visited) if len(self.states_visited)>0 else 0.
 
         for key in summary.keys():
             if USE_TF:

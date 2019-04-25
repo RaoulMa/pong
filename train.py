@@ -75,7 +75,7 @@ if __name__ == '__main__':
     # specify agent
     agent_names  = ['dqn',
                     #'vpg',
-                    #'ppo',
+                    'ppo',
                     ]
 
     cfgs, cfg_spec = [], {}
@@ -87,9 +87,10 @@ if __name__ == '__main__':
         cfg.update(cfg_agent)
 
         # make hyperparameter changes from default ones
-        cfg['n_steps'] = 500000      # total number of training steps
-        cfg['batch_size'] = 1         # batch size in terms of episodes
+        cfg['n_steps'] = 1000000      # total number of training steps
+        cfg['batch_size'] = 8         # batch size in terms of episodes (for policy gradients)
         cfg['log_step'] = 1000        # in terms of step numbers
+        cfg['save_freq'] = 100000     # save frequency in terms of step numbers
         cfg['agent_buffer_size'] = 100000
         cfg['agent_buffer_start_size'] = 10000
         cfg['update_target_network_freq'] = 1000

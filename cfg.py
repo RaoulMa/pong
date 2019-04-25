@@ -16,43 +16,44 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'reward_discount_factor': 0.99,
             'n_steps': 1000000,
             'log_step': 1000,
+            'save_freq': 50000,
             'activation': 'relu',
             'gae_lamda': 0.97,
         })
         if agent_name == 'ppo':
             cfg_agent = dotdict({
                 'model_name': 'ppo',
-                'batch_size': 4,
+                'batch_size': 8,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.00025,
+                'agent_learning_rate': 0.0001,
                 'clip_range': 0.1,
                 'baseline_d_hidden_layers': [],
-                'baseline_learning_rate': 0.00025,
+                'baseline_learning_rate': 0.0001,
                 'baseline': 'shared_advantage',
             })
         if agent_name == 'vpg':
             cfg_agent = dotdict({
                 'model_name': 'vpg',
-                'batch_size': 4,
+                'batch_size': 8,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.00025,
+                'agent_learning_rate': 0.0001,
                 'baseline_d_hidden_layers': [32],
-                'baseline_learning_rate': 0.00025,
+                'baseline_learning_rate': 0.0001,
                 'baseline': 'shared_advantage',
             })
         if agent_name == 'dqn':
             cfg_agent = dotdict({
                 'model_name': 'dqn',
-                'update_freq': 1,
+                'update_freq': 4,
                 'update_target_network_freq': 1000,
                 'agent_d_hidden_layers': [32],
-                'agent_learning_rate': 0.00025,
+                'agent_learning_rate': 0.0001,
                 'epsilon_start': 1.0,
                 'epsilon_step_range': 100000,
-                'epsilon_final': 0.02,
+                'epsilon_final': 0.1,
                 'agent_buffer_start_size': 10000,
                 'agent_buffer_size': 100000,
-                'agent_buffer_batch_size': 32,
+                'agent_buffer_batch_size': 128,
             })
 
     """ 
@@ -68,6 +69,7 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'reward_discount_factor': 0.99,
             'n_steps': 1000000,
             'log_step': 1000,
+            'save_freq': 100000,
             'activation': 'relu',
             'gae_lamda': 0.97,
         })
@@ -118,6 +120,7 @@ def get_cfg(experiment_folder, env_name, agent_name):
             'seed': 1,
             'n_steps': 50000,
             'log_step': 1000,
+            'save_freq': 10000,
             'global_step': 0,
             'reward_discount_factor': 0.99,
             'agent_buffer_size': 1000000,

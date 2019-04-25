@@ -166,14 +166,14 @@ class Model(object):
         elif 'rs' in self.model_name:
             self.agent = None
 
-        # initialise summary writer and save cfg parameters
         if not load:
+            # initialise summary writer and save cfg parameters
             # short description
             description = self.env_name
 
             if USE_TF:
                 # use an own suffix to distinguish from ray tf events
-                self.writer = tf.summary.FileWriter(self.cfg.experiment_folder, filename_suffix = 'tf.events.model')
+                self.writer = tf.summary.FileWriter(self.cfg.experiment_folder, filename_suffix='tf.events.model')
 
             if USE_TFE:
                 self.summary_writer = tf.contrib.summary.create_file_writer(cfg.experiment_folder, flush_millis=10000)
@@ -332,6 +332,9 @@ class Model(object):
 
             obs = next_obs
 
+            if self.step_number % self.cfg.save_freq == 0:
+                self.save_model()
+
             if self.step_number % self.log_step == 0 and self.step_number <= self.n_steps:
                 self.print_logs()
                 self.write_summary()
@@ -376,6 +379,9 @@ class Model(object):
                 reward_batch[-1].append(reward)
 
                 obs = next_obs
+
+                if self.step_number % self.cfg.save_freq == 0:
+                    self.save_model()
 
                 if self.step_number % self.log_step == 0 and self.step_number <= self.n_steps:
                     self.print_logs()
@@ -430,6 +436,9 @@ class Model(object):
 
                 obs = next_obs
 
+                if self.step_number % self.cfg.save_freq == 0:
+                    self.save_model()
+
                 if self.step_number % self.log_step == 0 and self.step_number <= self.n_steps:
                     self.print_logs()
                     self.write_summary()
@@ -472,13 +481,13 @@ class Model(object):
             self.speed.append(self.log_step / (time.time() - self.t_start))
         self.t_start = time.time()
 
-        m = 5
+        m = 20
         print_str = 'ep {} st {} {} e.ret.tr {:.2f} ep.ln {:.0f} sp {:.1f} '.format(
             self.episode_number,
             self.step_number,
             self.model_name,
-            np.mean(self.returns[-m:] if len(self.returns)>0 else 0.),
-            np.mean(self.episode_lengths[-m:] if len(self.episode_lengths)>0 else 0.),
+            np.mean(self.returns[-m:]) if len(self.returns)>0 else 0.,
+            np.mean(self.episode_lengths[-m:]) if len(self.episode_lengths)>0 else 0.,
             self.speed[-1] if len(self.speed)>0 else 0.
         )
 
@@ -493,7 +502,7 @@ class Model(object):
 
     def write_summary(self):
         """ write tensorflow summaries """
-        m = 5
+        m = 20
         summary = {'data/ext_return': np.mean(self.returns[-m:]) if len(self.returns)>0 else 0.,
                    'data/episode_length': np.mean(self.episode_lengths[-m:]) if len(self.episode_lengths)>0 else 0.,
                    'data/speed': self.speed[-1] if len(self.speed)>0 else 0.}

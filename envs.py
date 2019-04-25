@@ -165,9 +165,9 @@ class AtariGame(object):
 
     def render(self):
         #matplotlib.use('TkAgg')
-        plt.imshow(self.obs[:,:,-1], cmap=cm.gray, vmin=0., vmax=1.)
-        plt.show()
-        #self.env.render()
+        #plt.imshow(self.obs[:,:,-1], cmap=cm.gray, vmin=0., vmax=1.)
+        #plt.show()
+        self.env.render()
 
     def close(self):
         self.env.close()

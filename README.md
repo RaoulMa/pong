@@ -26,14 +26,11 @@ python3 train.py
 All runs create tensorflow checkpoints and tensorboard event files in the results folder.
 
 ### Environment
-We consider the Atari Pong Environment. The gif below shows the unprocessed environment for one game play for 
-one of the trained agents. 
+
+The gifs below show the original (left) and preprocessed (right) observations for one game play to 
+a trained agent. We preprocess each image by resizing, cropping and grayscaling to speed up learning. 
 
 ![](images/pong_not_preprocessed.gif)![](images/pong_preprocessed.gif)
-
-We preprocess each image by resizing, cropping and grayscaling to speed up learning. The following gif shows 
-the preprocessed inputs to the convolutional network of the agent.
-
 
 
 ### Results

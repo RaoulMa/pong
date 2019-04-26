@@ -1,0 +1,45 @@
+{
+    "checkpoint_at_end": false,
+    "config": {
+        "cfg": {
+            "grid_search": [
+                {
+                    "activation": "relu",
+                    "agent_buffer_size": 100000,
+                    "agent_buffer_start_size": 10000,
+                    "agent_d_hidden_layers": [
+                        32
+                    ],
+                    "agent_learning_rate": 0.0001,
+                    "baseline": "shared_advantage",
+                    "baseline_d_hidden_layers": [],
+                    "baseline_learning_rate": 0.0001,
+                    "batch_size": 8,
+                    "clip_range": 0.1,
+                    "env_name": "PongNoFrameskip-v4",
+                    "experiment_folder": "/home/raoul/results/1",
+                    "gae_lamda": 0.97,
+                    "global_step": 0,
+                    "log_step": 1000,
+                    "model_name": "ppo",
+                    "n_steps": 10000000,
+                    "reward_discount_factor": 0.99,
+                    "save_freq": 1000000,
+                    "seed": 0,
+                    "update_target_network_freq": 1000,
+                    "verbose": false
+                }
+            ]
+        }
+    },
+    "local_dir": "/home/raoul/results",
+    "num_samples": 1,
+    "run": "Model",
+    "stop": {
+        "timesteps_total": 10000
+    },
+    "trial_resources": {
+        "cpu": 1,
+        "gpu": 1
+    }
+}

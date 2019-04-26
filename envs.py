@@ -169,12 +169,12 @@ class AtariGame(object):
 
     def render(self, fname=None):
         #matplotlib.use('TkAgg')
-        #plt.imshow(self.obs[:,:,-1], cmap=cm.gray, vmin=0., vmax=1.)
+        plt.imshow(self.obs[:,:,-1], cmap=cm.gray, vmin=0., vmax=1.)
         #plt.imshow(self.obs_unprocessed)
         #if fname is not None:
         #    plt.savefig(fname)
-        #plt.show()
-        self.env.render()
+        plt.show()
+        #self.env.render()
 
     def close(self):
         self.env.close()

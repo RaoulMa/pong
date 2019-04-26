@@ -1,0 +1,50 @@
+{
+  "checkpoints": [
+    {
+      "last_update_time": -Infinity,
+      "runner": null,
+      "trainable_name": "Model",
+      "max_failures": 3,
+      "verbose": 1,
+      "stopping_criterion": {
+        "timesteps_total": 10000
+      },
+      "custom_loggers": "80049502000000000000004e2e",
+      "export_formats": [],
+      "checkpoint_at_end": false,
+      "local_dir": "/home/raoul/results/1",
+      "config": "8004951e020000000000007d948c03636667947d94288c0b676c6f62616c5f73746570944b008c08656e765f6e616d65948c12506f6e674e6f4672616d65736b69702d7634948c116578706572696d656e745f666f6c646572948c152f686f6d652f72616f756c2f726573756c74732f31948c16626173656c696e655f6c6561726e696e675f7261746594473f1a36e2eb1c432d8c076e5f7374657073944a809698008c096761655f6c616d646194473fef0a3d70a3d70a8c07766572626f736594898c167265776172645f646973636f756e745f666163746f7294473fefae147ae147ae8c0473656564944b008c0a6d6f64656c5f6e616d65948c0370706f948c09736176655f66726571944a40420f008c0a62617463685f73697a65944b088c156167656e745f645f68696464656e5f6c6179657273945d944b20618c086c6f675f73746570944de8038c0a61637469766174696f6e948c0472656c75948c0a636c69705f72616e676594473fb999999999999a8c08626173656c696e65948c107368617265645f616476616e74616765948c116167656e745f6275666665725f73697a65944aa08601008c18626173656c696e655f645f68696464656e5f6c6179657273945d948c176167656e745f6275666665725f73746172745f73697a65944d10278c136167656e745f6c6561726e696e675f7261746594473f1a36e2eb1c432d8c1a7570646174655f7461726765745f6e6574776f726b5f66726571944de80375732e",
+      "status": "PENDING",
+      "trial_name": null,
+      "sync_function": "80049502000000000000004e2e",
+      "last_result": "80049502000000000000004e2e",
+      "upload_dir": "",
+      "result_logger": null,
+      "logdir": "/home/raoul/results/1/Model_0_cfg={'global_step': 0, 'env_name': 'PongNoFrameskip-v4', 'experiment_folder': '_home_raoul_results_1', 'baseline_learning__2019-04-26_07-26-02dxl75jcd",
+      "last_debug": 0,
+      "__logger_started__": true,
+      "resources": {
+        "gpu": 1,
+        "cpu": 1,
+        "extra_cpu": 0,
+        "extra_gpu": 0
+      },
+      "_checkpoint": "80049552000000000000008c0e7261792e74756e652e747269616c948c0a436865636b706f696e749493942981947d94288c0773746f72616765948c046469736b948c0b6c6173745f726573756c74944e8c0576616c7565944e75622e",
+      "trial_id": "53a30c7d",
+      "error_file": null,
+      "num_failures": 0,
+      "experiment_tag": "0_cfg={'global_step': 0, 'env_name': 'PongNoFrameskip-v4', 'experiment_folder': '_home_raoul_results_1', 'baseline_learning_rate': 0.0001, 'n_steps': 10000000, 'gae_lamda': 0.97, 'verbose': False, 'reward_discount_factor': 0.99, 'seed': 0, 'model_name': 'ppo', 'save_freq': 1000000, 'batch_size': 8, 'agent_d_hidden_layers': [32], 'log_step': 1000, 'activation': 'relu', 'clip_range': 0.1, 'baseline': 'shared_advantage', 'agent_buffer_size': 100000, 'baseline_d_hidden_layers': [], 'agent_buffer_start_size': 10000, 'agent_learning_rate': 0.0001, 'update_target_network_freq': 1000}",
+      "checkpoint_freq": 0
+    }
+  ],
+  "runner_data": {
+    "launch_web_server": false,
+    "_metadata_checkpoint_dir": "/home/raoul/results/1",
+    "_verbose": 1,
+    "_server_port": 4321,
+    "_queue_trials": false,
+    "_total_time": 15902.569141626358,
+    "_global_time_limit": Infinity,
+    "_iteration": 2618
+  }
+}

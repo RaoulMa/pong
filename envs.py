@@ -138,34 +138,41 @@ class AtariGame(object):
             # sum of rewards from each frame
             total_reward += reward
 
+            # maximal number of plays per game
+            #if self.n_plays >= self.max_n_plays:
+            if done:
+                self.done_game = True
+
             # one play ended if reward -1 or +1 for Pong
             if reward != 0:
                 self.n_plays += 1
                 done = True
-
-            # maximal number of plays per game
-            if self.n_plays >= self.max_n_plays:
-                self.done_game = True
 
             # episode has terminated
             if done:
                 done = True
                 break
 
+        #self.obs_unprocessed = obs
+
         # Take the maximum of each pixel of the last two frames, which
         # might be necessary due to pixel fluctuations
+        prev_obs = self.encode_obs(prev_obs)
+        obs = self.encode_obs(obs)
         obs = np.max(np.array([prev_obs, obs]), axis=0)
 
         # Add the maximum of last two frames to the 4-frame stack.
         # Taking the maximum avoids flickering images of Atari
-        obs = self.encode_obs(obs)
         self.obs[..., -1:] = obs
 
         return self.obs, total_reward, done, info
 
-    def render(self):
+    def render(self, fname=None):
         #matplotlib.use('TkAgg')
         #plt.imshow(self.obs[:,:,-1], cmap=cm.gray, vmin=0., vmax=1.)
+        #plt.imshow(self.obs_unprocessed)
+        #if fname is not None:
+        #    plt.savefig(fname)
         #plt.show()
         self.env.render()
 

@@ -50,7 +50,7 @@ def get_cfg(experiment_folder, env_name, agent_name):
                 'agent_learning_rate': 0.0001,
                 'epsilon_start': 1.0,
                 'epsilon_step_range': 100000,
-                'epsilon_final': 0.1,
+                'epsilon_final': 0.02,
                 'agent_buffer_start_size': 10000,
                 'agent_buffer_size': 100000,
                 'agent_buffer_batch_size': 128,

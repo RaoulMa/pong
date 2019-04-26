@@ -25,13 +25,20 @@ python3 train.py
 
 All runs create tensorflow checkpoints and tensorboard event files in the results folder.
 
-### Environment
+### Environment and Training Details
 
-The gifs below show the original (left) and preprocessed (right) observations for one game play to 
-a trained agent. We preprocess each image by resizing, cropping, grayscaling and normalising
-to speed up learning. 
+The gifs below show the original (left) and preprocessed (right) observations for one game play for 
+a trained agent.
 
 ![](images/pong_not_preprocessed.gif)![](images/pong_preprocessed.gif)
+
+- Each frame of Pong gets cropped to the playing region, gray-scaled and then resized to 
+the shape 84x84x1. Then the background is set to 0 value while the remaining pixels are set 
+to 1. 
+- One action of the agent is applied on four adjacent frames. The last two frames are combined 
+(maximum taken) to one frame which is enqueued to a fixed-size queue of four frames. All four frames 
+are then fed into the agent. Thus, the agent has information about previous frames.
+- All hyperparameters can be found in the file 'cfg.py'. 
 
 ### Results
 The following plot shows the average reward of the DQN agent while training for 1 million frames/steps. 

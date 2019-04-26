@@ -72,7 +72,7 @@ class AtariGame(object):
             self.lives = self.env.unwrapped.ale.lives()
 
             # fill whole stack with current frame
-            self.obs[..., 0:] = obs
+            self.obs[..., 0:]= obs
             self.obs[..., 1:] = obs
             self.obs[..., 2:] = obs
             self.obs[..., 3:] = obs
@@ -163,7 +163,8 @@ class AtariGame(object):
 
         # Add the maximum of last two frames to the 4-frame stack.
         # Taking the maximum avoids flickering images of Atari
-        self.obs[..., -1:] = obs
+        self.obs[...,:-1] = self.obs[...,1:]
+        self.obs[...,-1:] = obs
 
         return self.obs, total_reward, done, info
 

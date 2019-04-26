@@ -9,7 +9,7 @@
     "agent_learning_rate": 0.0001,
     "batch_size": 8,
     "env_name": "PongNoFrameskip-v4",
-    "epsilon_final": 0.1,
+    "epsilon_final": 0.02,
     "epsilon_start": 1.0,
     "epsilon_step_range": 100000,
     "experiment_folder": "/home/raoul/results/1",

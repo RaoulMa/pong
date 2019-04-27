@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     # specify agent
     agent_names  = [#'dqn',
-                    'vpg',
+                    #'vpg',
                     'ppo',
                     ]
 

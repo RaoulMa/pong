@@ -32,13 +32,19 @@ a trained agent.
 
 ![](images/pong_not_preprocessed.gif)![](images/pong_preprocessed.gif)
 
+- To speed up training we allow for two actions 'left' and 'right'. The actions 'no-op' and 'fire' are discarded.
 - Each frame of Pong gets cropped to the playing region, gray-scaled and then resized to 
 the shape 84x84x1. Then the background is set to 0 value while the remaining pixels are set 
 to 1. 
 - One action of the agent is applied on four adjacent frames. The last two frames are combined 
-(maximum taken) to one frame which is enqueued to a fixed-size queue of four frames. All four frames 
-are then fed into the agent. Thus, the agent has information about previous frames.
-- All hyperparameters can be found in the file 'cfg.py'. 
+(taking the maximum) to one frame which is enqueued to a fixed-size queue of four frames of 
+shape 84x84x4. All four frames are then fed into the agent. Thus, the agent has information 
+about frames of previous time steps.
+- In case of the DQN agent we decrease epsilon from 1 to 0.02 over 100000 frames. The target Q-network us updated 
+every 1000 steps. The Q-network s updated every 4 steps with a batch of 32 transitions uniformly sampled from the
+replay buffer.
+- In case of the PPO agent we set the clipping range to 0.1 and choose a batch size of 8 episodes. 
+- All default hyperparameters can be found in the file 'cfg.py'. 
 
 ### Results
 The following plot shows the average reward of the DQN agent while training for 1 million frames/steps. 

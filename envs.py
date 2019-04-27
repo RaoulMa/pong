@@ -72,10 +72,10 @@ class AtariGame(object):
             self.lives = self.env.unwrapped.ale.lives()
 
             # fill whole stack with current frame
-            self.obs[..., 0:]= obs
-            self.obs[..., 1:] = obs
-            self.obs[..., 2:] = obs
-            self.obs[..., 3:] = obs
+            self.obs[..., 0:]= np.copy(obs)
+            self.obs[..., 1:] = np.copy(obs)
+            self.obs[..., 2:] = np.copy(obs)
+            self.obs[..., 3:] = np.copy(obs)
 
         return self.obs
 
@@ -165,6 +165,12 @@ class AtariGame(object):
         # Taking the maximum avoids flickering images of Atari
         self.obs[...,:-1] = self.obs[...,1:]
         self.obs[...,-1:] = obs
+
+        #print(np.mean(self.obs[...,0]))
+        #print(np.mean(self.obs[...,1]))
+        #print(np.mean(self.obs[...,2]))
+        #print(np.mean(self.obs[...,3]))
+        #print('')
 
         return self.obs, total_reward, done, info
 

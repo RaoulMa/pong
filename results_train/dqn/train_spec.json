@@ -24,7 +24,7 @@
                     "model_name": "dqn",
                     "n_steps": 1000000,
                     "reward_discount_factor": 0.99,
-                    "save_freq": 100000,
+                    "save_freq": 200000,
                     "seed": 0,
                     "update_freq": 4,
                     "update_target_network_freq": 1000,

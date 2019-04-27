@@ -212,7 +212,9 @@ class VPGAgent(FNN):
             self.baseline.init_session(self.saver, self.session)
 
     def action(self, obs):
-        policy = self.session.run(self.policy, {self.observations: obs})[0]
+        feed = {self.observations: obs}
+        policy = self.session.run(self.policy, feed)[0] + 1e-6
+        policy /= np.sum(policy)
         action = np.argmax(np.random.multinomial(1, policy))
         return action, policy
 

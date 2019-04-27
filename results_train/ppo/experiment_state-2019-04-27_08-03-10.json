@@ -1,0 +1,50 @@
+{
+  "checkpoints": [
+    {
+      "trial_name": null,
+      "trainable_name": "Model",
+      "error_file": null,
+      "custom_loggers": "80049502000000000000004e2e",
+      "status": "PENDING",
+      "experiment_tag": "0_cfg={'model_name': 'ppo', 'reward_discount_factor': 0.99, 'agent_buffer_size': 100000, 'agent_buffer_start_size': 10000, 'verbose': False, 'batch_size': 8, 'env_name': 'PongNoFrameskip-v4', 'baseline': 'shared_advantage', 'global_step': 0, 'seed': 0, 'agent_learning_rate': 0.0001, 'log_step': 1000, 'baseline_d_hidden_layers': [], 'n_steps': 4000000, 'save_freq': 1000000, 'baseline_learning_rate': 0.0001, 'activation': 'relu', 'clip_range': 0.1, 'agent_d_hidden_layers': [32], 'gae_lamda': 0.97, 'update_target_network_freq': 1000, 'experiment_folder': '_home_raoul_results_1'}",
+      "max_failures": 3,
+      "runner": null,
+      "_checkpoint": "80049552000000000000008c0e7261792e74756e652e747269616c948c0a436865636b706f696e749493942981947d94288c0576616c7565944e8c0773746f72616765948c046469736b948c0b6c6173745f726573756c74944e75622e",
+      "upload_dir": "",
+      "last_result": "80049502000000000000004e2e",
+      "checkpoint_freq": 0,
+      "verbose": 1,
+      "result_logger": null,
+      "export_formats": [],
+      "config": "8004951e020000000000007d948c03636667947d94288c0a6d6f64656c5f6e616d65948c0370706f948c167265776172645f646973636f756e745f666163746f7294473fefae147ae147ae8c116167656e745f6275666665725f73697a65944aa08601008c176167656e745f6275666665725f73746172745f73697a65944d10278c07766572626f736594898c0a62617463685f73697a65944b088c08656e765f6e616d65948c12506f6e674e6f4672616d65736b69702d7634948c08626173656c696e65948c107368617265645f616476616e74616765948c0b676c6f62616c5f73746570944b008c0473656564944b008c136167656e745f6c6561726e696e675f7261746594473f1a36e2eb1c432d8c086c6f675f73746570944de8038c18626173656c696e655f645f68696464656e5f6c6179657273945d948c076e5f7374657073944a00093d008c09736176655f66726571944a40420f008c16626173656c696e655f6c6561726e696e675f7261746594473f1a36e2eb1c432d8c0a61637469766174696f6e948c0472656c75948c0a636c69705f72616e676594473fb999999999999a8c156167656e745f645f68696464656e5f6c6179657273945d944b20618c096761655f6c616d646194473fef0a3d70a3d70a8c1a7570646174655f7461726765745f6e6574776f726b5f66726571944de8038c116578706572696d656e745f666f6c646572948c152f686f6d652f72616f756c2f726573756c74732f319475732e",
+      "trial_id": "c2a20598",
+      "sync_function": "80049502000000000000004e2e",
+      "logdir": "/home/raoul/results/1/Model_0_cfg={'model_name': 'ppo', 'reward_discount_factor': 0.99, 'agent_buffer_size': 100000, 'agent_buffer_start_size': 10000, '_2019-04-27_08-03-10h24dlhy4",
+      "last_update_time": -Infinity,
+      "num_failures": 0,
+      "resources": {
+        "cpu": 1,
+        "extra_gpu": 0,
+        "gpu": 1,
+        "extra_cpu": 0
+      },
+      "stopping_criterion": {
+        "timesteps_total": 4000
+      },
+      "__logger_started__": true,
+      "last_debug": 0,
+      "local_dir": "/home/raoul/results/1",
+      "checkpoint_at_end": false
+    }
+  ],
+  "runner_data": {
+    "_total_time": 8883.264312028885,
+    "_server_port": 4321,
+    "_queue_trials": false,
+    "_iteration": 1454,
+    "_verbose": 1,
+    "_global_time_limit": Infinity,
+    "launch_web_server": false,
+    "_metadata_checkpoint_dir": "/home/raoul/results/1"
+  }
+}

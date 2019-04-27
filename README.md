@@ -1,5 +1,5 @@
 ![](images/pong_not_preprocessed.gif)![](images/pong_preprocessed.gif)
-# About
+### About
 Implementation of PPO, DQN, VPG agents in Tensorflow to solve Atari Pong and CartPole. 
 Some of the agents are also implemented in Tensorflow Eager and PyTorch.
 
@@ -24,7 +24,8 @@ with default parameters, run the following command:
 python3 train.py
 ```
 
-All runs create tensorflow checkpoints and tensorboard event files in the results folder.
+All runs create tensorflow checkpoints and tensorboard event files in the results folder. Already 
+trained agents included in the 'results_train' folder. 
 
 ### Experiments 
 The gifs on top of this page show the original (left) and preprocessed (right) observations for one game play for 
@@ -44,15 +45,15 @@ replay buffer.
 - In case of the PPO agent we set the clipping range to 0.1 and choose a batch size of 8 episodes. 
 - All default hyperparameters can be found in the file 'cfg.py'. 
 
-The following plot shows the average reward of the DQN agent while training for 1 million frames/steps. 
+The following plot shows the average reward of the DQN agent while training for 650000 frames/steps. 
 Losing or winning yields a reward of -1 or +1. Note, while training the agent epsilon decreases 
 from 1 to 0.02 for the first 100000 frames. If we set epsilon to zero the final agent 
 has learnt to beat the computer Pong player by more than 99% of the time.
 ![dqn returns](images/dqn_ext_return_versus_model_name.png)
 
 Next, we see the training curve for the PPO agent. Apart from fluctuations the agent's performance converges 
-to an average reward of +1 after 3-4 million frames. The final agent has learnt to beat the computer Pong 
-player by more than 99% of the time. 
+to an average reward of +1 after 2 million frames. The final agent has learnt to beat the computer Pong 
+player by more than 96% of the time. 
 ![ppo returns](images/ppo_ext_return_versus_model_name.png)
 
 ### References

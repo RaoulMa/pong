@@ -58,6 +58,11 @@ to an average reward of +1 after 2 million frames. The final agent has learnt to
 player by more than 96% of the time. 
 ![ppo returns](images/ppo_ext_return_versus_model_name.png)
 
+Finally, we look at the VPG agent. The training curve is much more unstable and doesn't seem to converge 
+within 2.5 million frames.
+![vpg returns](images/vpg_ext_return_versus_model_name.png)
+
+
 ### References
 
 [1] Playing Atari with Deep Reinforcement Learning, Mnih et al. arXiv:1312.5602v1  [cs.LG]  19 Dec 2013

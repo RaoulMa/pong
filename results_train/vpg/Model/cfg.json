@@ -1,0 +1,27 @@
+{
+    "activation": "relu",
+    "agent_buffer_size": 100000,
+    "agent_buffer_start_size": 10000,
+    "agent_d_hidden_layers": [
+        32
+    ],
+    "agent_learning_rate": 0.0001,
+    "baseline": "shared_advantage",
+    "baseline_d_hidden_layers": [
+        32
+    ],
+    "baseline_learning_rate": 0.0001,
+    "batch_size": 8,
+    "env_name": "PongNoFrameskip-v4",
+    "experiment_folder": "/home/raoul/results/1",
+    "gae_lamda": 0.97,
+    "global_step": 0,
+    "log_step": 1000,
+    "model_name": "vpg",
+    "n_steps": 4000000,
+    "reward_discount_factor": 0.99,
+    "save_freq": 500000,
+    "seed": 0,
+    "update_target_network_freq": 1000,
+    "verbose": false
+}

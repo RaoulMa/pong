@@ -44,6 +44,8 @@ every 1000 steps. The Q-network s updated every 4 steps with a batch of 32 trans
 replay buffer.
 - In case of the PPO agent we set the clipping range to 0.1 and choose a batch size of 8 episodes. 
 - All default hyperparameters can be found in the file 'cfg.py'. 
+- Due to computational resorces we have not made a hyperparameter seach and only considered
+one fixed seed.
 
 The following plot shows the average reward of the DQN agent while training for 650000 frames/steps. 
 Losing or winning yields a reward of -1 or +1. Note, while training the agent epsilon decreases 

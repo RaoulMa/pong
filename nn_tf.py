@@ -70,7 +70,7 @@ class FNN():
                     self.layers_.append(outputs)
                     self.outputs = outputs
 
-            # Neural network for Pong, Breakout.
+            # Neural network for Pong.
             # The architecture follows the one used in
             # Mnih et. al. "Human-level control through deep reinforcement learning "
             elif nn_type == 'convolution':
@@ -222,6 +222,8 @@ class VPGAgent(FNN):
         self.session.close()
 
     def update(self, obs_batch, action_batch, reward_batch, done_batch):
+        """ one gradient step """
+
         # cumulative rewards
         creward_batch = cumulative_rewards(reward_batch, self.reward_discount_factor)
 
@@ -229,9 +231,9 @@ class VPGAgent(FNN):
         obs = np.squeeze(np.vstack(obs_batch).astype(np.float32))
         actions = np.vstack(action_batch).astype(np.float32)
         crewards = np.hstack(creward_batch).astype(np.float32)
-        stats = {'obs': obs, 'crewards': crewards}
 
         # use advantage baseline
+        advantages = crewards
         if self.baseline!=None:
             state_value_batch = []
             for i in range(len(obs_batch)):
@@ -242,17 +244,17 @@ class VPGAgent(FNN):
                                                self.baseline.reward_discount_factor,
                                                self.baseline.gae_lamda)
             advantages = np.hstack(advantage_batch).astype(np.float32)
-            stats['baseline_value'] = np.mean(advantages)
-            crewards = advantages
 
-        feed = {self.observations: obs, self.actions: actions, self.crewards: crewards}
+        feed = {self.observations: obs, self.actions: actions, self.crewards: advantages}
         loss, _ = self.session.run([self.loss, self.train_op], feed)
         self.global_step += 1
 
+        # statistics
+        stats = {'obs': obs, 'crewards': crewards}
+        stats['baseline_value'] = np.mean(advantages)
+
         # monte carlo update of baseline
         if self.baseline!=None:
-            obs = stats['obs']
-            crewards = stats['crewards']
             baseline_loss, _ = self.baseline.mc_update(obs, crewards)
             stats['baseline_loss'] = baseline_loss
 
@@ -445,6 +447,7 @@ class PPOAgent(FNN):
         if self.baseline is not None:
             baseline_loss, _ = self.baseline.mc_update(obs, crewards)
             stats['baseline_loss'] = baseline_loss
+
         return loss, _ , stats
 
 class DQNAgent(FNN):
@@ -465,18 +468,32 @@ class DQNAgent(FNN):
         self.d_input = d_input
         self.learning_rate = learning_rate
 
-        # traget q-value network
+        # target q-value network
         self.target_dqn = FNN(d_input, d_hidden_layers, d_output, learning_rate,
                               [], nn_type, activation, experiment_folder, 'target_dqn')
 
-        # current q-value
-        self.q = self.layers_[-1]
+        # q-value
+        self.q_value = self.layers_[-1]
 
-        # q-target value ph
-        self.q_target = tf.placeholder(shape=(None, d_output), dtype=tf.float32)
+        # target q-value
+        self.q_value_target = self.target_dqn.layers_[-1]
 
-        # loss
-        self.loss = tf.losses.mean_squared_error(labels=self.q_target, predictions=self.q)
+        # sampled trajectories
+        self.actions_ph = tf.placeholder(shape=(None,), dtype=tf.int32)
+        actions_enc = tf.one_hot(self.actions_ph, axis=1, depth=d_output)
+        self.rewards_ph = tf.placeholder(shape=(None,), dtype=tf.float32)
+        self.done_ph = tf.placeholder(shape=(None,), dtype=tf.float32)
+
+        # dqn loss
+        # 1)  compute target q-value of next observation s_(t+1)
+        # 2)  for current observations construct target q values
+        # 2a) copy q-values for current observations
+        # 2b) use the maximal target q-value of
+        #     next observation s_(t+1) as 'best' action
+        # 2c) update the q-values for the taken actions
+        q_value_for_actions = tf.reduce_sum(self.q_value * actions_enc, axis=1)
+        target = self.rewards_ph + self.gamma * (1. - self.done_ph) * tf.stop_gradient(tf.reduce_max(self.q_value_target, axis=1))
+        self.loss = tf.losses.mean_squared_error(labels=target, predictions=q_value_for_actions)
 
         # only train policy network
         self.train_op = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss)
@@ -513,14 +530,10 @@ class DQNAgent(FNN):
         self.copy_trainable_variables(self.nn_name, self.target_dqn.nn_name)
 
     def action(self, obs):
-        """ return action and policy """
-        # note we take actions according to the old policy
+        """ return action """
         feed = {self.observations: obs}
-
-        # deterministic action
-        q_value = self.session.run(self.q, feed)[0] + 1e-6
+        q_value = self.session.run(self.q_value, feed)[0]
         action = np.argmax(q_value)
-
         return action, None
 
     def update(self, obs, actions, next_obs, rewards, done):
@@ -535,21 +548,12 @@ class DQNAgent(FNN):
         actions = np.array(actions)
         rewards = np.array(rewards).astype(np.float32)
 
-        # 1)  compute target q-value of next observation s_(t+1)
-        # 2)  for current observations construct target q values
-        # 2a) copy q-values for current observations
-        # 2b) use the maximal target q-value of
-        #     next observation s_(t+1) as 'best' action
-        # 2c) update the q-values for the taken actions
-        feed = {self.observations: obs, self.target_dqn.observations: next_obs}
-        q_target, q_target_next_state = self.session.run([self.q, self.target_dqn.outputs], feed)
-        q_target[np.arange(len(actions)), actions] = rewards + self.gamma * (1. - done) * np.max(q_target_next_state, axis=1)
-
-        # train current policy network
-        feed = {self.observations: obs, self.q_target: q_target}
+        # update dqn network
+        feed = {self.observations: obs, self.target_dqn.observations: next_obs,
+                self.done_ph: done, self.actions_ph: actions, self.rewards_ph: rewards}
         loss, _ = self.session.run([self.loss, self.train_op], feed)
-
         self.global_step += 1
+
         return loss, _
 
 class StateValueFunction(FNN):

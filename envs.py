@@ -8,7 +8,7 @@ import cv2
 import sys
 
 class AtariGame(object):
-    """ Environment wrapper for Atari Pong and Breakout
+    """Environment wrapper for Atari Pong.
 
     This class simplifies the interaction of the agent with the Pong
     environment. The API follows the OpenAI gym API.
@@ -166,22 +166,16 @@ class AtariGame(object):
         self.obs[...,:-1] = self.obs[...,1:]
         self.obs[...,-1:] = obs
 
-        #print(np.mean(self.obs[...,0]))
-        #print(np.mean(self.obs[...,1]))
-        #print(np.mean(self.obs[...,2]))
-        #print(np.mean(self.obs[...,3]))
-        #print('')
-
         return self.obs, total_reward, done, info
 
     def render(self, fname=None):
         #matplotlib.use('TkAgg')
-        plt.imshow(self.obs[:,:,-1], cmap=cm.gray, vmin=0., vmax=1.)
         #plt.imshow(self.obs_unprocessed)
         #if fname is not None:
         #    plt.savefig(fname)
-        plt.show()
         #self.env.render()
+        plt.imshow(self.obs[:,:,-1], cmap=cm.gray, vmin=0., vmax=1.)
+        plt.show()
 
     def close(self):
         self.env.close()

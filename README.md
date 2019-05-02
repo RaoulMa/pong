@@ -1,7 +1,6 @@
 ![](images/pong_not_preprocessed.gif)![](images/pong_preprocessed.gif)
 ### About
-Implementation of PPO, DQN, VPG agents in Tensorflow to solve Atari Pong and CartPole. 
-Some of the agents are also implemented in Tensorflow Eager and PyTorch.
+Implementation of PPO, DQN, VPG agents in Tensorflow to solve Atari Pong. 
 
 This repository serves the purpose of self-teaching. The implementations 
 are not particularly clear, efficient, well tested or numerically stable. We advise 

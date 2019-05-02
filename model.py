@@ -16,34 +16,20 @@ from utils import json_to_data
 from utils import data_to_json
 from utils import plot_df
 
-# choose between tf, tf eager and pt
-USE_TF = True
-USE_TFE = False
-USE_PT = False
-
-if USE_TF:
-    from nn_tf import VPGAgent
-    from nn_tf import PPOAgent
-    from nn_tf import DQNAgent
-elif USE_TFE:
-    from nn_tfe import VPGAgent
-    from nn_tfe import PPOAgent
-    from nn_tfe import DQNAgent
-elif USE_PT:
-    from nn_pt import VPGAgent
-    from nn_pt import PPOAgent
-    from nn_pt import DQNAgent
+from nn_tf import VPGAgent
+from nn_tf import PPOAgent
+from nn_tf import DQNAgent
 
 class Model(object):
-    """ Interactions of RL agents in various environments
+    """Interactions of RL agents in various environments.
 
     This class implements the interactions of the PPO, VPG, DQN with
     the environments Atari Pong, Breakout and OpenAI CartPole.
 
-    The code is largely agnostic to the used deep learning framework
-    tensorflow, tensorflow in eager mode and pytorch
+    The code is largely agnostic to the used deep learning framework but finally
+    implements the agents using Tensorflow.
 
-    Training progress can be visualised via tensorboard and models
+    Training progress can be visualised via TensorBoard and models
     can be saved/loaded to/from the filesystem.
 
     Default hyperparameters for each agent and environment are stored in the
@@ -171,14 +157,8 @@ class Model(object):
             # short description
             description = self.env_name
 
-            if USE_TF:
-                # use an own suffix to distinguish from ray tf events
-                self.writer = tf.summary.FileWriter(self.cfg.experiment_folder, filename_suffix='tf.events.model')
-
-            if USE_TFE:
-                self.summary_writer = tf.contrib.summary.create_file_writer(cfg.experiment_folder, flush_millis=10000)
-                with self.summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
-                    tf.contrib.summary.scalar('data/' + description, 0, step=0)
+            # use an own suffix to distinguish from ray tf events
+            self.writer = tf.summary.FileWriter(self.cfg.experiment_folder, filename_suffix='tf.events.model')
 
             # save cfg parameters
             fpath = os.path.join(cfg.experiment_folder, 'cfg.json')
@@ -528,23 +508,14 @@ class Model(object):
             summary['data/baseline_value'] = np.mean(self.baseline_value[-m:]) if len(self.baseline_value)>0 else 0.
 
         for key in summary.keys():
-            if USE_TF:
-                summary_value = tf.Summary.Value(tag=key, simple_value=summary[key])
-                self.writer.add_summary(tf.Summary(value=[summary_value]), global_step=self.step_number)
+            summary_value = tf.Summary.Value(tag=key, simple_value=summary[key])
+            self.writer.add_summary(tf.Summary(value=[summary_value]), global_step=self.step_number)
 
-            elif USE_TFE:
-                with self.summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
-                    tf.contrib.summary.scalar(key, summary[key], step=self.step_number)
-        if USE_TF:
-            self.writer.flush()
+        self.writer.flush()
 
     def close(self):
         """ close summary filewriters """
-        if USE_TF:
-            self.writer.close()
-        elif USE_TFE:
-            self.summary_writer.close()
-
+        self.writer.close()
         if self.agent is not None:
             self.agent.close()
         if self.baseline is not None:

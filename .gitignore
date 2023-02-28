@@ -1,0 +1,7 @@
+results/
+.ipynb_checkpoints
+__pycache__/
+_*
+gif/
+nn_pt.py
+nn_tfe.py
